@@ -1,0 +1,83 @@
+PODS:
+  - AliPlayerSDK_iOS (6.19.0):
+    - AliPlayerSDK_iOS/AliPlayerSDK (= 6.19.0)
+  - AliPlayerSDK_iOS/AliPlayerSDK (6.19.0)
+  - connectivity (0.0.1):
+    - Flutter
+    - Reachability
+  - Flutter (1.0.0)
+  - flutter_aliplayer (6.19.0):
+    - Flutter
+    - flutter_aliplayer/AliPlayerSDKFrameworks (= 6.19.0)
+    - MJExtension
+  - flutter_aliplayer/AliPlayerSDKFrameworks (6.19.0):
+    - AliPlayerSDK_iOS (= 6.19.0)
+    - Flutter
+    - MJExtension
+  - fluttertoast (0.0.2):
+    - Flutter
+    - Toast
+  - MJExtension (3.4.1)
+  - MTBBarcodeScanner (5.0.11)
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - qr_code_scanner (0.2.0):
+    - Flutter
+    - MTBBarcodeScanner
+  - Reachability (3.2)
+  - sqflite (0.0.3):
+    - Flutter
+    - FlutterMacOS
+  - Toast (4.0.0)
+
+DEPENDENCIES:
+  - connectivity (from `.symlinks/plugins/connectivity/ios`)
+  - Flutter (from `Flutter`)
+  - flutter_aliplayer (from `.symlinks/plugins/flutter_aliplayer/ios`)
+  - fluttertoast (from `.symlinks/plugins/fluttertoast/ios`)
+  - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
+  - qr_code_scanner (from `.symlinks/plugins/qr_code_scanner/ios`)
+  - sqflite (from `.symlinks/plugins/sqflite/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - AliPlayerSDK_iOS
+    - MJExtension
+    - MTBBarcodeScanner
+    - Reachability
+    - Toast
+
+EXTERNAL SOURCES:
+  connectivity:
+    :path: ".symlinks/plugins/connectivity/ios"
+  Flutter:
+    :path: Flutter
+  flutter_aliplayer:
+    :path: ".symlinks/plugins/flutter_aliplayer/ios"
+  fluttertoast:
+    :path: ".symlinks/plugins/fluttertoast/ios"
+  path_provider_foundation:
+    :path: ".symlinks/plugins/path_provider_foundation/darwin"
+  qr_code_scanner:
+    :path: ".symlinks/plugins/qr_code_scanner/ios"
+  sqflite:
+    :path: ".symlinks/plugins/sqflite/darwin"
+
+SPEC CHECKSUMS:
+  AliPlayerSDK_iOS: 76f6309c05a580b4992507cff7791dfd7704b9d1
+  connectivity: c4130b2985d4ef6fd26f9702e886bd5260681467
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_aliplayer: 03dfcb60838b78b3dcaa2307762987817dbcc71f
+  fluttertoast: e9a18c7be5413da53898f660530c56f35edfba9c
+  MJExtension: 21c5f6f8c4d5d8844b7ae8fbae08fed0b501f961
+  MTBBarcodeScanner: f453b33c4b7dfe545d8c6484ed744d55671788cb
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  qr_code_scanner: bb67d64904c3b9658ada8c402e8b4d406d5d796e
+  Reachability: 33e18b67625424e47b6cde6d202dce689ad7af96
+  sqflite: 673a0e54cc04b7d6dba8d24fb8095b31c3a99eec
+  Toast: 91b396c56ee72a5790816f40d3a94dd357abc196
+
+PODFILE CHECKSUM: 935e2949155b7dbfb3642019bb79ba203b4ef68e
+
+COCOAPODS: 1.16.2

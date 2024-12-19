@@ -1,0 +1,79 @@
+group 'com.alibaba.fplayer.flutter_aliplayer'
+version '1.0'
+
+buildscript {
+    ext.kotlin_version = '1.7.20'
+    repositories {
+        google()
+        jcenter()
+        maven { url "https://maven.aliyun.com/nexus/content/repositories/releases" }
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.1.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        jcenter()
+        maven { url "https://maven.aliyun.com/nexus/content/repositories/releases" }
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+
+    /// 集成FAQ (Integration FAQ)
+    /// <!!!> 当您项目的AGP版本高于AGP 8时，如8.3.2，请添加声明namespace的代码
+    /// <!!!> When the AGP version of your project is higher than AGP 8, such as 8.3.2, please add code declaring the namespace.
+    /// <!!!> 当您项目的AGP版本低于AGP 7时，如4.0.1，请移除声明namespace的代码
+    /// <!!!> When the AGP version of your project is lower than AGP 7, such as 4.0.1, please remove the code that declares namespace
+    namespace = "com.alibaba.fplayer.flutter_aliplayer"
+
+    compileSdkVersion 34
+
+    defaultConfig {
+        minSdkVersion 21
+    }
+    lintOptions {
+        disable 'InvalidPackage'
+    }
+
+    buildTypes {
+        debug {
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+
+        release {
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // 定义 SDK 内核
+    def useAIOFramework = false
+
+    // 定义 SDK 版本
+    // 1. 音视频终端SDK及版本，建议使用最新版本，详情参考官网：https://help.aliyun.com/zh/apsara-video-sdk/developer-reference/fast-integration-for-android
+    def aio_sdk_version = "6.17.0"
+    // 2. 播放器SDK及版本，建议使用最新版本，详情参考官网：https://help.aliyun.com/zh/vod/developer-reference/release-notes-for-apsaravideo-player-sdk-for-android
+    def player_sdk_version = "6.19.0"
+
+    // 根据 useAIOFramework 的值选择相应的 SDK
+    if (useAIOFramework) {
+        // 音视频终端SDK（互动直播）：直播推流（含超低延时直播、RTC连麦）＋播放器
+        implementation "com.aliyun.aio:AliVCSDK_InteractiveLive:$aio_sdk_version"
+    } else {
+        // 阿里云播放器独立SDK
+        implementation "com.aliyun.sdk.android:AlivcArtc:$player_sdk_version"
+        implementation "com.aliyun.sdk.android:AliyunPlayer:$player_sdk_version-full"
+        implementation 'com.aliyun.rts.android:RtsSDK:2.6.3'
+    }
+
+    implementation 'com.google.code.gson:gson:2.8.6'
+}

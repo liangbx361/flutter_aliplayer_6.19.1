@@ -1,0 +1,70 @@
+{
+  "json": [
+    {
+      "id": 1,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/5f2e5b7f-191dbfe2558/5f2e5b7f-191dbfe2558.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/509f248b6f7371efabb40764b3ec0102/snapshots/eca85b3d92f845c9a000a29e831dea9a-00005.jpg",
+      "type": "video"
+    },
+    {
+      "id": 2,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/46b605a-191dbfe2565/46b605a-191dbfe2565.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/b0a7208b6f7371ef80196732b68f0102/snapshots/3e3de94d0c6947baa1d4c342ceea4d9a-00005.jpg",
+      "type": "video"
+    },
+    {
+      "id": 3,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/15a34a2f-191dbfe2561/15a34a2f-191dbfe2561.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/20ee2d8b6f7371efabb40764b3ec0102/snapshots/73f007c2b61a477aac6bca5f50cae159-00005.jpg",
+      "type": "video"
+    },
+    {
+      "id": 4,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/1c225fc-191dbfe2569/1c225fc-191dbfe2569.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/40961f8b6f7371efbfbc5017f0e90102/snapshots/c2b278dd01dc4c498fc67fa5b816fa6d-00005.jpg",
+      "type": "video"
+    },
+    {
+      "id": 5,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/5e0bdc21-191dbfe2573/5e0bdc21-191dbfe2573.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/8085278b6f7371efb88d5420848c0102/snapshots/a2f191ee2b7a4cbbbc47d0d94314be56-00002.jpg",
+      "type": "video"
+    },
+    {
+      "id": 6,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/5542861a-191dbfe3f90/5542861a-191dbfe3f90.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/e080228f6f7371efbfbd4531949c0102/snapshots/257f99e120d04d449a4b74b2fa0a7747-00004.jpg",
+      "type": "video"
+    },
+    {
+      "id": 7,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/6288e862-191dbfe417d/6288e862-191dbfe417d.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/009c698f6f7371ef8a726633b79f0102/snapshots/35205804802147c1acb416ffa02ea134-00001.jpg",
+      "type": "video"
+    },
+    {
+      "id": 8,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/5b7c8a83-191dbfe437b/5b7c8a83-191dbfe437b.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/3013bd8f6f7371ef80176723a78f0102/snapshots/24c75583f8034ff29b26ceb8e6788425-00004.jpg",
+      "type": "video"
+    },
+    {
+      "id": 9,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/3b6463f7-191dbfe44cf/3b6463f7-191dbfe44cf.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/60cdf08f6f7371ef80176723a78f0102/snapshots/da568ef522504779bd3c86339738bb6a-00003.jpg",
+      "type": "video"
+    },
+    {
+      "id": 10,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/61bdf4fc-191dbfe4630/61bdf4fc-191dbfe4630.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/e0bb27906f7371ef800f4531958d0102/snapshots/12038816131c462fbb1fda53f0b0161b-00004.jpg",
+      "type": "video"
+    },
+    {
+      "id": 11,
+      "url": "https://alivc-demo-vod.aliyuncs.com/sv/23ef8470-191dbfe55b9/23ef8470-191dbfe55b9.mp4",
+      "coverUrl": "http://alivc-demo-vod.aliyuncs.com/e0c282926f7371ef80176723a78f0102/snapshots/3ffb148cea9242689a8c57c4ee2b33b4-00003.jpg",
+      "type": "video"
+    }
+  ]
+}
