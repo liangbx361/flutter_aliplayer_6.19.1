@@ -7,14 +7,11 @@ typedef OnError = void Function(String url, int code, String msg);
 typedef OnCancel = void Function(String url);
 
 class FlutterAliPlayerMediaLoader {
+  static MethodChannel methodChannel = MethodChannel("plugins.flutter_aliplayer_media_loader");
+  static EventChannel eventChannel = EventChannel("flutter_aliplayer_media_loader_event");
   static FlutterAliPlayerMediaLoader? _instance;
-
-  late MethodChannel methodChannel;
-  late EventChannel eventChannel;
-
+  
   FlutterAliPlayerMediaLoader._() {
-    methodChannel = MethodChannel("plugins.flutter_aliplayer_media_loader");
-    eventChannel = EventChannel("flutter_aliplayer_media_loader_event");
     eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onError);
   }
 
