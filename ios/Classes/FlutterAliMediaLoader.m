@@ -105,21 +105,15 @@
 
 #pragma mark -- AliMediaLoaderStatusDelegate
 - (void)onError:(NSString *)url code:(int64_t)code msg:(NSString *)msg {
-    if (self.eventSink) {
-        self.eventSink(@{kAliPlayerMethod:@"onError",@"url":url,@"code":[NSString stringWithFormat:@"%lld", code],@"msg":msg});
-    }
+    // self.eventSink(@{kAliPlayerMethod:@"onError",@"url":url,@"code":[NSString stringWithFormat:@"%lld", code],@"msg":msg});
 }
 
 - (void)onCompleted:(NSString *)url {
-    if (self.eventSink) {
-        self.eventSink(@{kAliPlayerMethod:@"onCompleted",@"url":url});
-    }
+    // self.eventSink(@{kAliPlayerMethod:@"onCompleted",@"url":url});
 }
 
 - (void)onCanceled:(NSString *)url {
-    if (self.eventSink) {
-        self.eventSink(@{kAliPlayerMethod:@"onCancel",@"url":url});
-    }
+    // self.eventSink(@{kAliPlayerMethod:@"onCancel",@"url":url});
 }
 
 #pragma mark -- lazy load
