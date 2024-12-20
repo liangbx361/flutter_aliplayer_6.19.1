@@ -7,15 +7,14 @@ typedef OnError = void Function(String url, int code, String msg);
 typedef OnCancel = void Function(String url);
 
 class FlutterAliPlayerMediaLoader {
-  static MethodChannel methodChannel =
-      MethodChannel("plugins.flutter_aliplayer_media_loader");
-
-  static EventChannel eventChannel =
-      EventChannel("flutter_aliplayer_media_loader_event");
-
   static FlutterAliPlayerMediaLoader? _instance;
 
+  late MethodChannel methodChannel;
+  late EventChannel eventChannel;
+
   FlutterAliPlayerMediaLoader._() {
+    methodChannel = MethodChannel("plugins.flutter_aliplayer_media_loader");
+    eventChannel = EventChannel("flutter_aliplayer_media_loader_event");
     eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onError);
   }
 
@@ -57,8 +56,7 @@ class FlutterAliPlayerMediaLoader {
   /// onCompletion: 完成回调
   /// onCancel: 取消回调
   /// onError: 错误回调
-  void setOnLoadStatusListener(
-      OnCompletion? onCompletion, OnCancel? onCancel, OnError? onError) {
+  void setOnLoadStatusListener(OnCompletion? onCompletion, OnCancel? onCancel, OnError? onError) {
     this.onCompletion = onCompletion;
     this.onCancel = onCancel;
     this.onError = onError;

@@ -2,13 +2,12 @@ package com.alibaba.fplayer.flutter_aliplayer;
 
 import android.content.Context;
 
-import androidx.annotation.NonNull;
-
 import com.aliyun.loader.MediaLoader;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import androidx.annotation.NonNull;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -39,7 +38,9 @@ public class FlutterAliMediaLoader implements FlutterPlugin, MethodChannel.Metho
                 resultMap.put("url", url);
                 resultMap.put("code", String.valueOf(code));
                 resultMap.put("msg", msg);
-                mEventSink.success(resultMap);
+                if (mEventSink != null) {
+                    mEventSink.success(resultMap);
+                }
             }
 
             @Override
@@ -47,7 +48,9 @@ public class FlutterAliMediaLoader implements FlutterPlugin, MethodChannel.Metho
                 Map<String, String> resultMap = new HashMap<>();
                 resultMap.put("method", "onCompleted");
                 resultMap.put("url", url);
-                mEventSink.success(resultMap);
+                if (mEventSink != null) {
+                    mEventSink.success(resultMap);
+                }
             }
 
             @Override
@@ -55,7 +58,9 @@ public class FlutterAliMediaLoader implements FlutterPlugin, MethodChannel.Metho
                 Map<String, String> resultMap = new HashMap<>();
                 resultMap.put("method", "onCanceled");
                 resultMap.put("url", url);
-                mEventSink.success(resultMap);
+                if (mEventSink != null) {
+                    mEventSink.success(resultMap);
+                }
             }
         });
     }
