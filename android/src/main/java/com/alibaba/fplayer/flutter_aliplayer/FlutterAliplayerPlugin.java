@@ -72,19 +72,6 @@ public class FlutterAliplayerPlugin extends PlatformViewFactory implements Flutt
         mEventChannel.setStreamHandler(this);
 
         flutterAliFloatWindowManager = new FlutterAliFloatWindowManager(flutterPluginBinding.getApplicationContext());
-
-        AliPlayerGlobalSettings.setCacheUrlHashCallback(new AliPlayerGlobalSettings.OnGetUrlHashCallback() {
-            @Override
-            public String getUrlHashCallback(String s) {
-                String result = s;
-                if (s.contains("?")) {
-                    String[] split = s.split("\\?");
-                    result = split[0];
-                }
-                System.out.println("java urlHashCallback " + s);
-                return FlutterAliPlayerStringUtils.stringToMD5(result);
-            }
-        });
     }
 
     //   This static function is optional and equivalent to onAttachedToEngine. It supports the old
