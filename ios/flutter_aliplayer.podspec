@@ -24,7 +24,7 @@ A new flutter plugin project.
   # 1. 音视频终端SDK及版本，建议使用最新版本，详情参考官网：https://help.aliyun.com/zh/apsara-video-sdk/developer-reference/fast-integration-for-android
   aio_sdk_version = '6.17.0'
   # 2. 播放器SDK及版本，建议使用最新版本，详情参考官网：https://help.aliyun.com/zh/vod/developer-reference/release-notes-for-apsaravideo-player-sdk-for-android
-  player_sdk_version = '7.1.0'
+  player_sdk_version = '7.2.0'
 
   # 根据 useAIOFramework 的值选择相应的 SDK
   if useAIOFramework
