@@ -6,6 +6,7 @@
 //
 
 #import "AliDownloaderProxy.h"
+#import "AliPlayerLogger.h"
 #import <MJExtension/MJExtension.h>
 
 @implementation AliDownloaderProxy
@@ -36,7 +37,7 @@
 }
 
 - (void)onError:(AliMediaDownloader*)downloader errorModel:(AVPErrorModel *)errorModel{
-    NSLog(@"=========onErr==%@",errorModel.mj_JSONString);
+    [AliPlayerLogger logError:@"=========onErr==%@",errorModel.mj_JSONString];
     if(self.eventSink){
         [self.argMap setObject:@"download_error" forKey:@"method"];
         [self.argMap setObject:[NSString stringWithFormat:@"%lu",(unsigned long)errorModel.code] forKey:@"errorCode"];

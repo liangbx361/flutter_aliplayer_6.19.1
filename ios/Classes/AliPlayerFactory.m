@@ -5,6 +5,7 @@
 //  Created by aliyun on 2020/10/9.
 //
 #import "AliPlayerFactory.h"
+#import "AliPlayerLogger.h"
 #import "FlutterAliPlayerView.h"
 #import "NSDictionary+ext.h"
 #import <MJExtension/MJExtension.h>
@@ -55,8 +56,8 @@ AliPlayerAudioSesstionTypeNone,
 
                 if (!proxy && playerId.length > 0 &&
                     ![call.method isEqualToString:@"createAliPlayer"]) {
-                    NSLog(@"flutter aliplayer sdk err : player whith playerId %@ is not exist",
-                          playerId);
+                    [AliPlayerLogger logError:@"flutter aliplayer sdk err : player whith playerId %@ is not exist",
+                          playerId];
                     return;
                 }
 
@@ -176,7 +177,7 @@ id _Nullable
     AliPlayerProxy *proxy = arr[2];
     NSString *url = arr[3];
     
-    NSLog(@"AliPlayerFactory: setUrl - 设置新视频源: %@", url);
+    [AliPlayerLogger logDebug:@"setUrl - 设置新视频源: %@", url];
     
     AVPUrlSource *source = [[AVPUrlSource alloc] urlWithString:url];
     [proxy.player setUrlSource:source];
@@ -190,7 +191,7 @@ id _Nullable
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
     
-    NSLog(@"AliPlayerFactory: prepare - 准备播放新视频源");
+    [AliPlayerLogger logDebug:@"prepare - 准备播放新视频源"];
     [proxy.player prepare];
     
     result(nil);
@@ -228,7 +229,7 @@ id _Nullable
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
     
-    NSLog(@"AliPlayerFactory: stop - 停止当前播放");
+    [AliPlayerLogger logDebug:@"stop - 停止当前播放"];
     
     // 简化处理：直接stop，PIP状态由监控机制自动处理
     [proxy.player stop];
