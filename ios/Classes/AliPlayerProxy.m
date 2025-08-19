@@ -321,6 +321,8 @@
  @param completionHandler 一定要调用的闭包，表示跳转操作完成
  */
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController skipByInterval:(CMTime)skipInterval completionHandler:(void (^)(void))completionHandler {
+    // iOS 14+ 已通过 requiresLinearPlayback 隐藏按钮，此方法不会被调用
+    // iOS 13及以下保持原有的快进快退功能
     int64_t skipTime = skipInterval.value / skipInterval.timescale;
     int64_t currentTime = self.player.currentPosition;
     int64_t skipPosition = currentTime + skipTime * 1000;
@@ -331,6 +333,7 @@
     }
     [self.player seekToTime:skipPosition seekMode:AVP_SEEKMODE_ACCURATE];
     [pictureInPictureController invalidatePlaybackState];
+    completionHandler();
 }
 
 /**
@@ -393,12 +396,17 @@
     if (!_pipController) {
          self.pipController = pictureInPictureController;
         
-        
         if (!self.player){
             [self.player setPictureInPictureShowMode:AVP_SHOW_MODE_DEFAULT];
             [self.player setPictureinPictureDelegate:self];
         }
       }
+    
+    // 禁用PIP中的快进快退按钮（iOS 14+）
+    if (@available(iOS 14.0, *)) {
+        pictureInPictureController.requiresLinearPlayback = YES;
+    }
+    
     self.isPipPaused = NO;
     [self.pipController invalidatePlaybackState];
 }
