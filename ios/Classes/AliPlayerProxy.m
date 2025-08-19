@@ -18,6 +18,10 @@
 
 // 监听播放器当前播放进度，currentPosition设置为监听视频当前播放位置回调中的position参数值
 @property(nonatomic, assign) int64_t currentPosition;
+
+// PIP状态监控
+@property (nonatomic, strong) NSTimer *pipStateMonitor;
+@property (nonatomic, assign) BOOL lastKnownPipActiveState;
 @end
 
 @implementation AliPlayerProxy
@@ -31,6 +35,19 @@
  @param newStatus 新的播放器状态 参考AVPStatus
  */
 - (void)onPlayerStatusChanged:(AliPlayer*)player oldStatus:(AVPStatus)oldStatus newStatus:(AVPStatus)newStatus {
+    NSLog(@"AliPlayerProxy: onPlayerStatusChanged - oldStatus:%d, newStatus:%d", (int)oldStatus, (int)newStatus);
+    self.currentPlayerStatus = newStatus;
+    
+    // 同步PIP状态
+    if (self.pipController) {
+        BOOL shouldBePaused = (newStatus != AVPStatusStarted);
+        if (self.isPipPaused != shouldBePaused) {
+            self.isPipPaused = shouldBePaused;
+            NSLog(@"AliPlayerProxy: 同步PIP状态 - isPipPaused:%d", self.isPipPaused);
+            [self.pipController invalidatePlaybackState];
+        }
+    }
+    
     self.eventSink(@{kAliPlayerMethod:@"onStateChanged",@"newState":@(newStatus),kAliPlayerId:_playerId});
 }
 
@@ -57,7 +74,10 @@
 -(void)onPlayerEvent:(AliPlayer*)player eventType:(AVPEventType)eventType {
     switch (eventType) {
         case AVPEventPrepareDone:
+            NSLog(@"AliPlayerProxy: AVPEventPrepareDone - 视频准备完成");
             self.eventSink(@{kAliPlayerMethod:@"onPrepared",kAliPlayerId:_playerId});
+            
+            // 注意：PIP状态处理现在由状态监控机制自动处理
             break;
         case AVPEventFirstRenderedStart:
             self.eventSink(@{kAliPlayerMethod:@"onRenderingStart",kAliPlayerId:_playerId});
@@ -292,11 +312,17 @@
  @param completionHandler 调用并传值YES以允许系统结束恢复播放器用户接口
  */
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:(void (^)(BOOL))completionHandler {
-    if (_pipController) {
-          _pipController = nil;
-      }
-      completionHandler(YES);
+    NSLog(@"AliPlayerProxy: restoreUserInterfaceForPictureInPictureStop 被调用");
     
+    // 延迟清理PIP Controller，避免过早清理导致回调失效
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self.pipController) {
+            NSLog(@"AliPlayerProxy: 延迟清理PIP Controller");
+            self.pipController = nil;
+        }
+    });
+    
+    completionHandler(YES);
 }
 
 /**
@@ -341,6 +367,7 @@
  @param pictureInPictureController 画中画控制器
  */
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    NSLog(@"AliPlayerProxy: DidStartPictureInPicture - Controller地址: %p", pictureInPictureController);
     [pictureInPictureController invalidatePlaybackState];
 }
 
@@ -349,7 +376,11 @@
  @param pictureInPictureController 画中画控制器
  */
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    NSLog(@"AliPlayerProxy: ⭐⭐⭐ DidStopPictureInPicture - Controller地址: %p ⭐⭐⭐", pictureInPictureController);
     [pictureInPictureController invalidatePlaybackState];
+    
+    // 🔍 确保停止监控
+    [self stopPipStateMonitoring];
 }
 
 /**
@@ -392,15 +423,22 @@
  @param pictureInPictureController 画中画控制器
  */
 - (void)pictureInPictureControllerWillStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    NSLog(@"AliPlayerProxy: ⭐⭐⭐ pictureInPictureControllerWillStartPictureInPicture 被调用 ⭐⭐⭐");
+    NSLog(@"AliPlayerProxy: 传入的Controller地址: %p", pictureInPictureController);
+    
     self.eventSink(@{kAliPlayerMethod:@"WillStartPip",@"pipStatus":@(YES),kAliPlayerId:_playerId});
+    
     if (!_pipController) {
-         self.pipController = pictureInPictureController;
+        self.pipController = pictureInPictureController;
+        NSLog(@"AliPlayerProxy: 设置PIP Controller地址: %p", self.pipController);
         
-        if (!self.player){
+        // 修复：确保播放器存在时才设置delegate
+        if (self.player) {
             [self.player setPictureInPictureShowMode:AVP_SHOW_MODE_DEFAULT];
             [self.player setPictureinPictureDelegate:self];
+            NSLog(@"AliPlayerProxy: 重新设置播放器PIP delegate");
         }
-      }
+    }
     
     // 禁用PIP中的快进快退按钮（iOS 14+）
     if (@available(iOS 14.0, *)) {
@@ -409,6 +447,11 @@
     
     self.isPipPaused = NO;
     [self.pipController invalidatePlaybackState];
+    
+    // 🔍 启动PIP状态监控
+    [self startPipStateMonitoring];
+    
+    NSLog(@"AliPlayerProxy: ⭐⭐⭐ WillStartPip 设置完成 ⭐⭐⭐");
 }
 
 /**
@@ -416,14 +459,176 @@
  @param pictureInPictureController 画中画控制器
  */
 - (void)pictureInPictureControllerWillStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
+    NSLog(@"AliPlayerProxy: ⭐⭐⭐ pictureInPictureControllerWillStopPictureInPicture 被调用 ⭐⭐⭐");
+    NSLog(@"AliPlayerProxy: 当前PIP Controller地址: %p", self.pipController);
+    NSLog(@"AliPlayerProxy: 传入的Controller地址: %p", pictureInPictureController);
+    NSLog(@"AliPlayerProxy: PIP Controller相等: %@", (self.pipController == pictureInPictureController) ? @"YES" : @"NO");
+    NSLog(@"AliPlayerProxy: 当前isPipPaused: %@", self.isPipPaused ? @"YES" : @"NO");
+    
     self.isPipPaused = NO;
     self.eventSink(@{kAliPlayerMethod:@"WillStopPip",@"pipStatus":@(YES),kAliPlayerId:_playerId});
-      [self.pipController invalidatePlaybackState];
+    [self.pipController invalidatePlaybackState];
+    
+    NSLog(@"AliPlayerProxy: ⭐⭐⭐ WillStopPip 回调完成 ⭐⭐⭐");
 }
 
 -(void)bindPlayerView:(FlutterAliPlayerView*)fapv{
     _fapv = fapv;
     self.player.playerView = fapv.view;
+}
+
+#pragma mark - PIP状态监控方法
+
+/**
+ @brief 开始PIP状态监控
+ */
+- (void)startPipStateMonitoring {
+    NSLog(@"AliPlayerProxy: 🔍 开始PIP状态监控");
+    
+    if (self.pipStateMonitor) {
+        [self.pipStateMonitor invalidate];
+        self.pipStateMonitor = nil;
+    }
+    
+    // 每0.5秒检查一次PIP状态
+    self.pipStateMonitor = [NSTimer scheduledTimerWithTimeInterval:0.5
+                                                            target:self
+                                                          selector:@selector(checkPipStateChange)
+                                                          userInfo:nil
+                                                           repeats:YES];
+    
+    // 初始化上次已知状态
+    self.lastKnownPipActiveState = self.pipController ? self.pipController.isPictureInPictureActive : NO;
+    NSLog(@"AliPlayerProxy: 🔍 初始PIP状态: %@", self.lastKnownPipActiveState ? @"激活" : @"未激活");
+}
+
+/**
+ @brief 停止PIP状态监控
+ */
+- (void)stopPipStateMonitoring {
+    NSLog(@"AliPlayerProxy: 🔍 停止PIP状态监控");
+    
+    if (self.pipStateMonitor) {
+        [self.pipStateMonitor invalidate];
+        self.pipStateMonitor = nil;
+    }
+}
+
+/**
+ @brief 检查PIP状态变化
+ */
+- (void)checkPipStateChange {
+    if (!self.pipController) {
+        return;
+    }
+    
+    BOOL currentPipActiveState = self.pipController.isPictureInPictureActive;
+    
+    // 检测到PIP状态变化
+    if (currentPipActiveState != self.lastKnownPipActiveState) {
+        NSLog(@"AliPlayerProxy: 🔍⚡ 检测到PIP状态变化: %@ → %@", 
+              self.lastKnownPipActiveState ? @"激活" : @"未激活",
+              currentPipActiveState ? @"激活" : @"未激活");
+        
+        if (self.lastKnownPipActiveState && !currentPipActiveState) {
+            // PIP从激活变为未激活，手动触发willStopPip逻辑
+            NSLog(@"AliPlayerProxy: 🔍⚡⚡ 手动触发WillStopPip逻辑 ⚡⚡");
+            [self manuallyTriggerWillStopPip];
+        } else if (!self.lastKnownPipActiveState && currentPipActiveState) {
+            // PIP从未激活变为激活
+            NSLog(@"AliPlayerProxy: 🔍⚡ PIP激活，开始状态同步");
+            self.isPipPaused = (self.currentPlayerStatus != AVPStatusStarted);
+        }
+        
+        self.lastKnownPipActiveState = currentPipActiveState;
+    }
+}
+
+/**
+ @brief 手动触发WillStopPip逻辑
+ */
+- (void)manuallyTriggerWillStopPip {
+    NSLog(@"AliPlayerProxy: 🔍⚡⚡⚡ manuallyTriggerWillStopPip - 手动触发WillStopPip逻辑 ⚡⚡⚡");
+    
+    // 模拟原来willStopPip回调的逻辑
+    self.isPipPaused = NO;
+    self.eventSink(@{kAliPlayerMethod:@"WillStopPip",@"pipStatus":@(YES),kAliPlayerId:_playerId});
+    
+    // 停止状态监控，因为PIP已经停止
+    [self stopPipStateMonitoring];
+    
+    NSLog(@"AliPlayerProxy: 🔍⚡⚡⚡ 手动WillStopPip逻辑执行完成 ⚡⚡⚡");
+}
+
+/**
+ @brief 处理视频源切换时的PIP状态
+ */
+- (void)handleVideoSourceChange {
+    NSLog(@"AliPlayerProxy: handleVideoSourceChange - 处理视频源切换");
+    
+    if (self.pipController && self.pipController.isPictureInPictureActive) {
+        NSLog(@"AliPlayerProxy: PIP处于激活状态，需要强制重新关联");
+        
+        // 强制重新关联PIP Controller
+        [self forcePipControllerReassociation];
+    }
+}
+
+/**
+ @brief 强制重新关联PIP Controller与播放器
+ */
+- (void)forcePipControllerReassociation {
+    NSLog(@"AliPlayerProxy: forcePipControllerReassociation - 强制重新关联PIP Controller");
+    
+    if (!self.pipController || !self.pipController.isPictureInPictureActive) {
+        NSLog(@"AliPlayerProxy: PIP未激活，跳过重新关联");
+        return;
+    }
+    
+    // 保存当前PIP状态
+    BOOL wasPaused = self.isPipPaused;
+    
+    // 重新设置播放器的PIP delegate
+    if (self.player) {
+        NSLog(@"AliPlayerProxy: 重新设置播放器PIP delegate");
+        [self.player setPictureinPictureDelegate:self];
+        
+        // 确保PIP模式设置正确
+        [self.player setPictureInPictureShowMode:AVP_SHOW_MODE_DEFAULT];
+    }
+    
+    // 恢复PIP状态
+    self.isPipPaused = wasPaused;
+    
+    // 延迟刷新，确保新播放器实例完全初始化
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSLog(@"AliPlayerProxy: 延迟执行PIP状态刷新");
+        [self refreshPipStateIfNeeded];
+        
+        // 再次确保delegate关联
+        if (self.player) {
+            [self.player setPictureinPictureDelegate:self];
+        }
+    });
+}
+
+/**
+ @brief 刷新PIP状态（如果需要）
+ */
+- (void)refreshPipStateIfNeeded {
+    if (self.pipController && self.pipController.isPictureInPictureActive) {
+        NSLog(@"AliPlayerProxy: refreshPipStateIfNeeded - 刷新PIP状态");
+        
+        // 根据当前播放器状态更新PIP状态
+        BOOL shouldBePaused = (self.currentPlayerStatus != AVPStatusStarted);
+        if (self.isPipPaused != shouldBePaused) {
+            self.isPipPaused = shouldBePaused;
+            NSLog(@"AliPlayerProxy: 刷新PIP暂停状态为: %d", self.isPipPaused);
+        }
+        
+        [self.pipController invalidatePlaybackState];
+        NSLog(@"AliPlayerProxy: PIP状态刷新完成");
+    }
 }
 
 - (void)timerAction {
@@ -441,6 +646,12 @@
     if (_timer) {
         [_timer invalidate];
         _timer = nil;
+    }
+    
+    // 🔍 清理PIP状态监控
+    if (_pipStateMonitor) {
+        [_pipStateMonitor invalidate];
+        _pipStateMonitor = nil;
     }
 }
 

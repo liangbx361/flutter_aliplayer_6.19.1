@@ -175,15 +175,24 @@ id _Nullable
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
     NSString *url = arr[3];
+    
+    NSLog(@"AliPlayerFactory: setUrl - 设置新视频源: %@", url);
+    
     AVPUrlSource *source = [[AVPUrlSource alloc] urlWithString:url];
     [proxy.player setUrlSource:source];
+    
+    // 注意：PIP状态处理现在由状态监控机制自动处理
+    
     result(nil);
 }
 
 - (void)prepare:(NSArray *)arr {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
+    
+    NSLog(@"AliPlayerFactory: prepare - 准备播放新视频源");
     [proxy.player prepare];
+    
     result(nil);
 }
 
@@ -218,7 +227,12 @@ id _Nullable
 - (void)stop:(NSArray *)arr {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
+    
+    NSLog(@"AliPlayerFactory: stop - 停止当前播放");
+    
+    // 简化处理：直接stop，PIP状态由监控机制自动处理
     [proxy.player stop];
+    
     result(nil);
 }
 
