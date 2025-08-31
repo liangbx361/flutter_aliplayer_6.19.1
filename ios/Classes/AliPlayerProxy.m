@@ -23,6 +23,10 @@
 // PIP状态监控
 @property (nonatomic, strong) NSTimer *pipStateMonitor;
 @property (nonatomic, assign) BOOL lastKnownPipActiveState;
+
+// 🛡️ PIP 安全机制
+@property (nonatomic, assign) NSTimeInterval lastInvalidateTime;
+@property (nonatomic, strong) NSString *lastInvalidateContext;
 @end
 
 @implementation AliPlayerProxy
@@ -36,16 +40,18 @@
  @param newStatus 新的播放器状态 参考AVPStatus
  */
 - (void)onPlayerStatusChanged:(AliPlayer*)player oldStatus:(AVPStatus)oldStatus newStatus:(AVPStatus)newStatus {
-    [AliPlayerLogger logDebug:@"onPlayerStatusChanged - oldStatus:%d, newStatus:%d", (int)oldStatus, (int)newStatus];
+    [AliPlayerLogger logDebug:@"🛡️ onPlayerStatusChanged - oldStatus:%d, newStatus:%d", (int)oldStatus, (int)newStatus];
     self.currentPlayerStatus = newStatus;
     
-    // 同步PIP状态
+    // 🛡️ 安全地同步PIP状态 - 避免直接调用 invalidatePlaybackState
     if (self.pipController) {
         BOOL shouldBePaused = (newStatus != AVPStatusStarted);
         if (self.isPipPaused != shouldBePaused) {
             self.isPipPaused = shouldBePaused;
-            [AliPlayerLogger logDebug:@"同步PIP状态 - isPipPaused:%d", self.isPipPaused];
-            [self.pipController invalidatePlaybackState];
+            [AliPlayerLogger logDebug:@"🛡️ 需要同步PIP状态 - isPipPaused:%d", self.isPipPaused];
+            
+            // 🚫 移除直接调用，改用安全的延迟调用
+            [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"statusChanged"];
         }
     }
     
@@ -93,7 +99,8 @@
             self.eventSink(@{kAliPlayerMethod:@"onCompletion",kAliPlayerId:_playerId});
             if (_pipController) {
                    self.isPipPaused = YES; // 播放结束后，将画中画状态变更为暂停
-                   [self.pipController invalidatePlaybackState];
+                   // 🛡️ 使用安全方法替代直接调用
+                   [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"completion"];
                 }
             break;
         case AVPEventSeekEnd:
@@ -332,13 +339,20 @@
  @param playing 是否正在播放
  */
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController setPlaying:(BOOL)playing {
-    if (!playing){
-          self.isPipPaused = YES;
-        } else {
-          self.isPipPaused = NO;
-      }
-    self.eventSink(@{kAliPlayerMethod:@"setPlaying",@"playing":@(playing),kAliPlayerId:_playerId});
-      [pictureInPictureController invalidatePlaybackState];
+    // 🛡️ 安全地更新PIP播放状态
+    @try {
+        if (!playing){
+              self.isPipPaused = YES;
+            } else {
+              self.isPipPaused = NO;
+          }
+        self.eventSink(@{kAliPlayerMethod:@"setPlaying",@"playing":@(playing),kAliPlayerId:_playerId});
+        
+        // 🛡️ 使用安全方法替代直接调用
+        [self safeInvalidatePlaybackStateWithDelay:0.05 context:@"setPlaying"];
+    } @catch (NSException *exception) {
+        [AliPlayerLogger logError:@"🛡️ setPlaying 异常: %@", exception.description];
+    }
 }
 
 /**
@@ -348,19 +362,32 @@
  @param completionHandler 一定要调用的闭包，表示跳转操作完成
  */
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController skipByInterval:(CMTime)skipInterval completionHandler:(void (^)(void))completionHandler {
-    // iOS 14+ 已通过 requiresLinearPlayback 隐藏按钮，此方法不会被调用
-    // iOS 13及以下保持原有的快进快退功能
-    int64_t skipTime = skipInterval.value / skipInterval.timescale;
-    int64_t currentTime = self.player.currentPosition;
-    int64_t skipPosition = currentTime + skipTime * 1000;
-    if (skipPosition < 0) {
-      skipPosition = 0;
-    } else if (skipPosition > self.player.duration) {
-      skipPosition = self.player.duration;
+    // 🛡️ 安全地处理快进快退
+    @try {
+        // iOS 14+ 已通过 requiresLinearPlayback 隐藏按钮，此方法不会被调用
+        // iOS 13及以下保持原有的快进快退功能
+        int64_t skipTime = skipInterval.value / skipInterval.timescale;
+        int64_t currentTime = self.player.currentPosition;
+        int64_t skipPosition = currentTime + skipTime * 1000;
+        if (skipPosition < 0) {
+          skipPosition = 0;
+        } else if (skipPosition > self.player.duration) {
+          skipPosition = self.player.duration;
+        }
+        [self.player seekToTime:skipPosition seekMode:AVP_SEEKMODE_ACCURATE];
+        
+        // 🛡️ 使用安全方法替代直接调用
+        [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"skipByInterval"];
+        
+        if (completionHandler) {
+            completionHandler();
+        }
+    } @catch (NSException *exception) {
+        [AliPlayerLogger logError:@"🛡️ skipByInterval 异常: %@", exception.description];
+        if (completionHandler) {
+            completionHandler();
+        }
     }
-    [self.player seekToTime:skipPosition seekMode:AVP_SEEKMODE_ACCURATE];
-    [pictureInPictureController invalidatePlaybackState];
-    completionHandler();
 }
 
 /**
@@ -368,8 +395,14 @@
  @param pictureInPictureController 画中画控制器
  */
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
-    [AliPlayerLogger logDebug:@"DidStartPictureInPicture - Controller地址: %p", pictureInPictureController];
-    [pictureInPictureController invalidatePlaybackState];
+    // 🛡️ 安全地处理PIP启动完成
+    @try {
+        [AliPlayerLogger logDebug:@"🛡️ DidStartPictureInPicture - Controller地址: %p", pictureInPictureController];
+        // 🛡️ 使用安全方法替代直接调用
+        [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"didStart"];
+    } @catch (NSException *exception) {
+        [AliPlayerLogger logError:@"🛡️ didStartPictureInPicture 异常: %@", exception.description];
+    }
 }
 
 /**
@@ -377,11 +410,18 @@
  @param pictureInPictureController 画中画控制器
  */
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController {
-    [AliPlayerLogger logDebug:@"⭐⭐⭐ DidStopPictureInPicture - Controller地址: %p ⭐⭐⭐", pictureInPictureController];
-    [pictureInPictureController invalidatePlaybackState];
-    
-    // 🔍 确保停止监控
-    [self stopPipStateMonitoring];
+    // 🛡️ 安全地处理PIP停止完成
+    @try {
+        [AliPlayerLogger logDebug:@"🛡️⭐⭐⭐ DidStopPictureInPicture - Controller地址: %p ⭐⭐⭐", pictureInPictureController];
+        
+        // 🛡️ 使用安全方法替代直接调用
+        [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"didStop"];
+        
+        // 🔍 确保停止监控
+        [self stopPipStateMonitoring];
+    } @catch (NSException *exception) {
+        [AliPlayerLogger logError:@"🛡️ didStopPictureInPicture 异常: %@", exception.description];
+    }
 }
 
 /**
@@ -416,7 +456,6 @@
     } else {
         return CMTimeRangeMake(kCMTimeNegativeInfinity, kCMTimePositiveInfinity);
     }
-     [self.pipController invalidatePlaybackState];
 }
 
 /**
@@ -447,7 +486,8 @@
     }
     
     self.isPipPaused = NO;
-    [self.pipController invalidatePlaybackState];
+    // 🛡️ 使用安全方法替代直接调用
+    [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"willStart"];
     
     // 🔍 启动PIP状态监控
     [self startPipStateMonitoring];
@@ -468,7 +508,8 @@
     
     self.isPipPaused = NO;
     self.eventSink(@{kAliPlayerMethod:@"WillStopPip",@"pipStatus":@(YES),kAliPlayerId:_playerId});
-    [self.pipController invalidatePlaybackState];
+    // 🛡️ 使用安全方法替代直接调用
+    [self safeInvalidatePlaybackStateWithDelay:0.05 context:@"willStop"];
     
     [AliPlayerLogger logDebug:@"⭐⭐⭐ WillStopPip 回调完成 ⭐⭐⭐"];
 }
@@ -627,7 +668,8 @@
             NSLog(@"AliPlayerProxy: 刷新PIP暂停状态为: %d", self.isPipPaused);
         }
         
-        [self.pipController invalidatePlaybackState];
+        // 🛡️ 使用安全方法替代直接调用
+        [self safeInvalidatePlaybackStateWithDelay:0.1 context:@"monitoring"];
         NSLog(@"AliPlayerProxy: PIP状态刷新完成");
     }
 }
@@ -676,6 +718,76 @@
         [_player setPictureinPictureDelegate: self];
     }
     return _player;
+}
+
+#pragma mark - 🛡️ PIP 安全方法
+
+/**
+ @brief 安全地调用 invalidatePlaybackState
+ @param delay 延迟时间
+ @param context 调用上下文，用于日志记录
+ */
+- (void)safeInvalidatePlaybackStateWithDelay:(NSTimeInterval)delay context:(NSString *)context {
+    // 🛡️ 安全检查
+    if (!self.pipController) {
+        [AliPlayerLogger logDebug:@"🛡️ 跳过 invalidatePlaybackState - pipController 为空 (context: %@)", context];
+        return;
+    }
+    
+    if (![self.pipController isKindOfClass:[AVPictureInPictureController class]]) {
+        [AliPlayerLogger logError:@"🛡️ pipController 类型错误 (context: %@)", context];
+        return;
+    }
+    
+    // 🛡️ 防重复调用机制 - 避免短时间内重复调用
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    if (currentTime - self.lastInvalidateTime < 0.5 && [context isEqualToString:self.lastInvalidateContext]) {
+        [AliPlayerLogger logDebug:@"🛡️ 跳过重复的 invalidatePlaybackState 调用 (context: %@)", context];
+        return;
+    }
+    
+    self.lastInvalidateTime = currentTime;
+    self.lastInvalidateContext = context;
+    
+    // 🛡️ 主线程安全调用
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.pipController) {
+            @try {
+                [AliPlayerLogger logDebug:@"🛡️ 准备调用 invalidatePlaybackState (context: %@, delay: %.2f)", context, delay];
+                
+                if (delay > 0) {
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        if (self.pipController) {
+                            @try {
+                                [self.pipController invalidatePlaybackState];
+                                [AliPlayerLogger logDebug:@"✅ invalidatePlaybackState 调用成功 (context: %@)", context];
+                            } @catch (NSException *exception) {
+                                [AliPlayerLogger logError:@"🛡️ invalidatePlaybackState 异常: %@ (context: %@)", exception.description, context];
+                            }
+                        }
+                    });
+                } else {
+                    [self.pipController invalidatePlaybackState];
+                    [AliPlayerLogger logDebug:@"✅ invalidatePlaybackState 立即调用成功 (context: %@)", context];
+                }
+            } @catch (NSException *exception) {
+                [AliPlayerLogger logError:@"🛡️ invalidatePlaybackState 异常: %@ (context: %@)", exception.description, context];
+            }
+        }
+    });
+}
+
+/**
+ @brief 安全地设置PIP暂停状态
+ @param paused 是否暂停
+ @param context 调用上下文
+ */
+- (void)safeSyncPipPausedState:(BOOL)paused context:(NSString *)context {
+    if (self.isPipPaused != paused) {
+        self.isPipPaused = paused;
+        [AliPlayerLogger logDebug:@"🛡️ PIP状态同步: %@ (context: %@)", paused ? @"暂停" : @"播放", context];
+        [self safeInvalidatePlaybackStateWithDelay:0.1 context:[NSString stringWithFormat:@"%@_sync", context]];
+    }
 }
 
 @end

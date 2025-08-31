@@ -57,6 +57,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 -(void)bindPlayerView:(FlutterAliPlayerView*)fapv;
 
+// 🛡️ PIP 安全相关方法
+-(void)safeInvalidatePlaybackStateWithDelay:(NSTimeInterval)delay context:(NSString *)context;
+-(void)safeSyncPipPausedState:(BOOL)paused context:(NSString *)context;
+
 @end
 
 NS_ASSUME_NONNULL_END

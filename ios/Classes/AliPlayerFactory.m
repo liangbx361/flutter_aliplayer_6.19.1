@@ -1630,8 +1630,33 @@ NSString *hashCallback(NSString* url) {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
     BOOL enable = [arr[3] boolValue];
-    [proxy.player setPictureInPictureEnable:enable];
-    result(nil);
+    
+    // 🛡️ 安全检查，防止崩溃
+    @try {
+        if (!proxy || !proxy.player) {
+            [AliPlayerLogger logError:@"🛡️ setPictureInPictureEnable 失败: proxy 或 player 为空"];
+            if (result) result([FlutterError errorWithCode:@"INVALID_PLAYER" message:@"Player proxy 或 player 为空" details:nil]);
+            return;
+        }
+        
+        // 🛡️ 确保在主线程执行
+        if (![NSThread isMainThread]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self setPictureInPictureEnableForIOS:arr];
+            });
+            return;
+        }
+        
+        [AliPlayerLogger logDebug:@"🛡️ 设置 PictureInPictureEnable: %@", enable ? @"YES" : @"NO"];
+        [proxy.player setPictureInPictureEnable:enable];
+        
+        if (result) result(nil);
+        [AliPlayerLogger logDebug:@"✅ setPictureInPictureEnable 设置成功"];
+        
+    } @catch (NSException *exception) {
+        [AliPlayerLogger logError:@"🛡️ setPictureInPictureEnable 异常: %@", exception.description];
+        if (result) result([FlutterError errorWithCode:@"PIP_ERROR" message:exception.description details:nil]);
+    }
 }
 
 #pragma --mark CicadaAudioSessionDelegate
