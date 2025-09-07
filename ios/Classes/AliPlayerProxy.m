@@ -84,7 +84,8 @@
             [AliPlayerLogger logDebug:@"AVPEventPrepareDone - 视频准备完成"];
             self.eventSink(@{kAliPlayerMethod:@"onPrepared",kAliPlayerId:_playerId});
             
-            // 注意：PIP状态处理现在由状态监控机制自动处理
+            // 🔧 视频准备完成后，重新确保PIP配置正确
+            [self ensurePipConfigurationAfterPrepare];
             break;
         case AVPEventFirstRenderedStart:
             self.eventSink(@{kAliPlayerMethod:@"onRenderingStart",kAliPlayerId:_playerId});
@@ -419,6 +420,11 @@
         
         // 🔍 确保停止监控
         [self stopPipStateMonitoring];
+        
+        // 🔧 注意：不在这里清理pipController，因为PIP可能会被重新激活
+        // pipController只有在明确调用setPictureInPictureEnable:NO时才清理
+        [AliPlayerLogger logDebug:@"🔧 DidStop回调 - 保留PIP Controller以便可能的重新激活"];
+        
     } @catch (NSException *exception) {
         [AliPlayerLogger logError:@"🛡️ didStopPictureInPicture 异常: %@", exception.description];
     }
@@ -576,6 +582,9 @@
             // PIP从激活变为未激活，手动触发willStopPip逻辑
             [AliPlayerLogger logDebug:@"🔍⚡⚡ 手动触发WillStopPip逻辑 ⚡⚡"];
             [self manuallyTriggerWillStopPip];
+            
+            // 🔧 注意：不在这里清理pipController，保留以便可能的重新激活
+            [AliPlayerLogger logDebug:@"🔧 PIP监控检测到关闭，但保留Controller以便重新激活"];
         } else if (!self.lastKnownPipActiveState && currentPipActiveState) {
             // PIP从未激活变为激活
             [AliPlayerLogger logDebug:@"🔍⚡ PIP激活，开始状态同步"];
@@ -599,7 +608,8 @@
     // 停止状态监控，因为PIP已经停止
     [self stopPipStateMonitoring];
     
-    [AliPlayerLogger logDebug:@"🔍⚡⚡⚡ 手动WillStopPip逻辑执行完成 ⚡⚡⚡"];
+    // 🔧 注意：不清理pipController，保留以便可能的重新激活
+    [AliPlayerLogger logDebug:@"🔧 手动WillStopPip逻辑完成，保留Controller以便重新激活"];
 }
 
 /**
@@ -715,7 +725,11 @@
         _player.scalingMode =  AVP_SCALINGMODE_SCALEASPECTFIT;
         _player.rate = 1;
         _player.delegate = self;
+        
+        // 🔧 确保每次创建播放器时都正确设置PIP delegate和模式
         [_player setPictureinPictureDelegate: self];
+        [_player setPictureInPictureShowMode:AVP_SHOW_MODE_DEFAULT];
+        [AliPlayerLogger logDebug:@"🔧 新播放器实例创建，已设置PIP delegate和显示模式"];
     }
     return _player;
 }
@@ -787,6 +801,56 @@
         self.isPipPaused = paused;
         [AliPlayerLogger logDebug:@"🛡️ PIP状态同步: %@ (context: %@)", paused ? @"暂停" : @"播放", context];
         [self safeInvalidatePlaybackStateWithDelay:0.1 context:[NSString stringWithFormat:@"%@_sync", context]];
+    }
+}
+
+/**
+ @brief 强制清理PIP Controller（如果需要）
+ @param forceClean 是否强制清理，即使PIP已停止也清理Controller
+ */
+- (void)forceClearPipControllerIfNeeded:(BOOL)forceClean {
+    [AliPlayerLogger logDebug:@"🔧 forceClearPipControllerIfNeeded 被调用, forceClean: %@", forceClean ? @"YES" : @"NO"];
+    
+    if (self.pipController) {
+        BOOL isPipActive = self.pipController.isPictureInPictureActive;
+        [AliPlayerLogger logDebug:@"🔧 当前PIP Controller存在，激活状态: %@", isPipActive ? @"YES" : @"NO"];
+        
+        if (!isPipActive && forceClean) {
+            // PIP已经停止且要求强制清理，才清理Controller
+            [AliPlayerLogger logDebug:@"🔧 PIP已停止且要求强制清理，清理Controller"];
+            [self stopPipStateMonitoring];
+            self.pipController = nil;
+            [AliPlayerLogger logDebug:@"🔧 强制清理完成"];
+        } else if (!isPipActive && !forceClean) {
+            [AliPlayerLogger logDebug:@"🔧 PIP已停止但不强制清理，保留Controller"];
+        } else {
+            [AliPlayerLogger logDebug:@"🔧 PIP仍在激活状态，不清理"];
+        }
+    } else {
+        [AliPlayerLogger logDebug:@"🔧 没有PIP Controller需要清理"];
+    }
+}
+
+/**
+ @brief 在视频准备完成后确保PIP配置正确
+ */
+- (void)ensurePipConfigurationAfterPrepare {
+    [AliPlayerLogger logDebug:@"🔧 ensurePipConfigurationAfterPrepare - 确保PIP配置正确"];
+    
+    if (self.player) {
+        // 🔧 重新设置PIP delegate，确保回调能正常工作
+        [self.player setPictureinPictureDelegate:self];
+        [AliPlayerLogger logDebug:@"🔧 视频准备完成后重新设置PIP delegate"];
+        
+        // 🔧 设置PIP显示模式
+        [self.player setPictureInPictureShowMode:AVP_SHOW_MODE_DEFAULT];
+        [AliPlayerLogger logDebug:@"🔧 视频准备完成后设置PIP显示模式"];
+        
+        // 🔧 如果之前有PIP Controller但PIP没有激活，说明可能是切换视频源后的状态
+        if (self.pipController && !self.pipController.isPictureInPictureActive) {
+            [AliPlayerLogger logDebug:@"🔧 检测到非激活的PIP Controller，可能需要重新关联"];
+            // 这里不清理Controller，让上层重新调用enable时处理
+        }
     }
 }
 

@@ -1648,6 +1648,53 @@ NSString *hashCallback(NSString* url) {
         }
         
         [AliPlayerLogger logDebug:@"🛡️ 设置 PictureInPictureEnable: %@", enable ? @"YES" : @"NO"];
+        
+        if (enable) {
+            // 🔧 当启用PIP时，确保正确设置PIP相关配置
+            [AliPlayerLogger logDebug:@"🔧 启用PIP - 重新配置PIP设置"];
+            
+            // 🔧 重新设置PIP delegate，确保回调正常工作
+            [proxy.player setPictureinPictureDelegate:proxy];
+            [AliPlayerLogger logDebug:@"🔧 重新设置PIP delegate"];
+            
+            // 🔧 设置PIP显示模式
+            [proxy.player setPictureInPictureShowMode:AVP_SHOW_MODE_DEFAULT];
+            [AliPlayerLogger logDebug:@"🔧 设置PIP显示模式为DEFAULT"];
+            
+        } else if (!enable) {
+            // 🔧 当禁用PIP时，强制处理可能存在的PIP Controller状态不一致问题
+            [AliPlayerLogger logDebug:@"🔧 禁用PIP - 开始强制清理PIP状态"];
+            
+            // 🔧 首先尝试强制清理可能存在的无效PIP Controller (forceClean=YES)
+            [proxy forceClearPipControllerIfNeeded:YES];
+            
+            if (proxy.pipController) {
+                [AliPlayerLogger logDebug:@"🔧 发现存在的PIP Controller: %p", proxy.pipController];
+                [AliPlayerLogger logDebug:@"🔧 PIP Controller 激活状态: %@", 
+                      proxy.pipController.isPictureInPictureActive ? @"YES" : @"NO"];
+                
+                // 🔧 检查PIP是否实际还在运行
+                if (proxy.pipController.isPictureInPictureActive) {
+                    [AliPlayerLogger logDebug:@"🔧 PIP仍在激活状态，尝试停止"];
+                    @try {
+                        [proxy.pipController stopPictureInPicture];
+                        [AliPlayerLogger logDebug:@"🔧 已发送停止PIP命令"];
+                    } @catch (NSException *exception) {
+                        [AliPlayerLogger logError:@"🔧 停止PIP异常: %@", exception.description];
+                    }
+                } else {
+                    [AliPlayerLogger logDebug:@"🔧 PIP已停止，但Controller未清理 - 立即清理"];
+                    // 🔧 PIP已经被用户手动关闭，但Controller没有清理，强制清理
+                    [proxy stopPipStateMonitoring];
+                    proxy.pipController = nil;
+                    [AliPlayerLogger logDebug:@"🔧 强制清理完成"];
+                }
+            } else {
+                [AliPlayerLogger logDebug:@"🔧 没有发现PIP Controller，继续正常流程"];
+            }
+        }
+        
+        // 🔧 无论启用还是禁用，都调用播放器的设置方法
         [proxy.player setPictureInPictureEnable:enable];
         
         if (result) result(nil);

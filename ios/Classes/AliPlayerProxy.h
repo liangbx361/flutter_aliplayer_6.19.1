@@ -61,6 +61,11 @@ NS_ASSUME_NONNULL_BEGIN
 -(void)safeInvalidatePlaybackStateWithDelay:(NSTimeInterval)delay context:(NSString *)context;
 -(void)safeSyncPipPausedState:(BOOL)paused context:(NSString *)context;
 
+// 🔧 PIP 状态管理方法
+-(void)forceClearPipControllerIfNeeded:(BOOL)forceClean;
+-(void)stopPipStateMonitoring;
+-(void)ensurePipConfigurationAfterPrepare;
+
 @end
 
 NS_ASSUME_NONNULL_END
