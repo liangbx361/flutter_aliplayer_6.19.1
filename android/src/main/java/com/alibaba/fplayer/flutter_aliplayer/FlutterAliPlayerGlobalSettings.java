@@ -63,6 +63,11 @@ public class FlutterAliPlayerGlobalSettings implements FlutterPlugin, MethodChan
                 Boolean enableEnhancedHttpDns = call.arguments();
                 AliPlayerGlobalSettings.enableEnhancedHttpDns(enableEnhancedHttpDns);
                 break;
+            case "enableBufferToLocalCache":
+                Boolean enableBufferToLocalCache = call.arguments();
+                AliPlayerGlobalSettings.enableBufferToLocalCache(enableBufferToLocalCache);
+                result.success(null);
+                break;
             default:
                 break;
         }

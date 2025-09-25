@@ -30,4 +30,11 @@ class FlutterAliPlayerGlobalSettings {
   static Future<void> enableEnhancedHttpDns(bool enable) {
     return methodChannel.invokeMethod("enableEnhancedHttpDns", enable);
   }
+
+  /// 开启大缓存功能
+  /// 设置是否启用本地缓存缓冲区功能
+  /// 启用后可以提升播放体验，特别是网络状况不佳时
+  static Future<void> enableBufferToLocalCache(bool enable) {
+    return methodChannel.invokeMethod("enableBufferToLocalCache", enable);
+  }
 }

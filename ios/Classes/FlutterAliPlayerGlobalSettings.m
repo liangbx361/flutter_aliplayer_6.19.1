@@ -100,4 +100,12 @@
     result(nil);
 }
 
+- (void)enableBufferToLocalCache:(NSArray *)arr {
+    FlutterResult result = arr[1];
+    FlutterMethodCall *call = arr.firstObject;
+    NSNumber *val = [call arguments];
+    [AliPlayerGlobalSettings enableBufferToLocalCache:val.boolValue];
+    result(nil);
+}
+
 @end
