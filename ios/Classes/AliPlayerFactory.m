@@ -849,9 +849,9 @@ id _Nullable
 
     [AliPlayerGlobalSettings enableLocalCache:enableLocalCache maxBufferMemoryKB:[val[@"maxBufferMemoryKB"] intValue] localCacheDir:docDir];
 
-    // if (enableLocalCache) {
-    //     [AliPlayerGlobalSettings setCacheUrlHashCallback:hashCallback];
-    // }
+    if (enableLocalCache) {
+        [AliPlayerGlobalSettings setCacheUrlHashCallback:hashCallback];
+    }
 
     result(nil);
 }
@@ -872,7 +872,11 @@ id _Nullable
     result(nil);
 }
 
-NSString *hashCallback(NSString* url) {
+NSString *hashCallback(NSString *url) {
+    if ([url containsString:@"Ciphertext"]){
+        return [AliPlayerFactory md5:url];
+    }
+    
     NSArray *array = [[url stringByReplacingOccurrencesOfString:@"https" withString:@"http"] componentsSeparatedByString:@"?"];
     NSString *md5Str = array.firstObject;
     return [AliPlayerFactory md5:md5Str];
