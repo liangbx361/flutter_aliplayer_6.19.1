@@ -73,20 +73,20 @@ public class FlutterAliplayerPlugin extends PlatformViewFactory implements Flutt
         flutterAliFloatWindowManager = new FlutterAliFloatWindowManager(flutterPluginBinding.getApplicationContext());
 
         // 默认实现 setCacheUrlHashCallback
-        AliPlayerGlobalSettings.setCacheUrlHashCallback(new AliPlayerGlobalSettings.OnGetUrlHashCallback() {
-            @Override
-            public String getUrlHashCallback(String s) {
-                if (s.contains("Ciphertext")) {
-                    return FlutterAliPlayerStringUtils.stringToMD5(s);
-                }
-                String result = s;
-                if (s.contains("?")) {
-                    String[] split = s.split("\\?");
-                    result = split[0];
-                }
-                return FlutterAliPlayerStringUtils.stringToMD5(result);
-            }
-        });
+        // AliPlayerGlobalSettings.setCacheUrlHashCallback(new AliPlayerGlobalSettings.OnGetUrlHashCallback() {
+        //     @Override
+        //     public String getUrlHashCallback(String s) {
+        //         if (s.contains("Ciphertext")) {
+        //             return FlutterAliPlayerStringUtils.stringToMD5(s);
+        //         }
+        //         String result = s;
+        //         if (s.contains("?")) {
+        //             String[] split = s.split("\\?");
+        //             result = split[0];
+        //         }
+        //         return FlutterAliPlayerStringUtils.stringToMD5(result);
+        //     }
+        // });
     }
 
     @Override

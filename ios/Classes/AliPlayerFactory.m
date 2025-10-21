@@ -849,9 +849,9 @@ id _Nullable
 
     [AliPlayerGlobalSettings enableLocalCache:enableLocalCache maxBufferMemoryKB:[val[@"maxBufferMemoryKB"] intValue] localCacheDir:docDir];
 
-    if (enableLocalCache) {
-        [AliPlayerGlobalSettings setCacheUrlHashCallback:hashCallback];
-    }
+    // if (enableLocalCache) {
+    //     [AliPlayerGlobalSettings setCacheUrlHashCallback:hashCallback];
+    // }
 
     result(nil);
 }
