@@ -1,40 +1,34 @@
 import 'package:flutter/services.dart';
 
 class FlutterAliPlayerGlobalSettings {
-  static MethodChannel methodChannel =
+  static const MethodChannel methodChannel =
       MethodChannel("plugins.flutter_global_setting");
-  static EventChannel _eventChannel =
+  // ignore: unused_field
+  static const EventChannel _eventChannel =
       EventChannel("plugins.flutter_global_setting_event");
 
   /// 国际站环境集成
-  static Future<void> setGlobalEnvironment(int config) {
-    return methodChannel.invokeMethod("setGlobalEnvironment", config);
+  static Future<void> setGlobalEnvironment(int config) async {
+    // No-op in pure Dart
   }
 
   /// 设置特定功能选项
   static Future<void> setOption(int opt1, Object opt2) async {
-    var map = {"opt1": opt1, "opt2": opt2};
-    return methodChannel.invokeMethod("setOption", map);
+    // No-op in pure Dart
   }
 
   /// 播放器实例禁用crash堆栈上传
-  static Future<void> disableCrashUpload(bool enable) {
-    return methodChannel.invokeMethod("disableCrashUpload", enable);
+  static Future<void> disableCrashUpload(bool enable) async {
+    // No-op in pure Dart
   }
 
   /// 是否开启增强型httpDNS
-  /// 默认不开启 开启后需要注意以下事项
-  /// 1.该功能与Httpdns互斥，若同时打开，后开启的功能会实际生效；
-  /// 2.需要申请license的高级httpdns功能，否则该功能不工作
-  /// 3.需要通过接口添加cdn域名，否则会降级至local dns。
-  static Future<void> enableEnhancedHttpDns(bool enable) {
-    return methodChannel.invokeMethod("enableEnhancedHttpDns", enable);
+  static Future<void> enableEnhancedHttpDns(bool enable) async {
+    // No-op in pure Dart
   }
 
   /// 开启大缓存功能
-  /// 设置是否启用本地缓存缓冲区功能
-  /// 启用后可以提升播放体验，特别是网络状况不佳时
-  static Future<void> enableBufferToLocalCache(bool enable) {
-    return methodChannel.invokeMethod("enableBufferToLocalCache", enable);
+  static Future<void> enableBufferToLocalCache(bool enable) async {
+    // No-op in pure Dart
   }
 }

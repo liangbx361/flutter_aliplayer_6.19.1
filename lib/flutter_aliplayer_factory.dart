@@ -1,61 +1,49 @@
 import 'dart:typed_data';
-import 'dart:io';
 
-import 'package:flutter/services.dart';
+import 'package:flutter_aliplayer/flutter_aliplayer.dart';
 import 'package:flutter_aliplayer/flutter_alilistplayer.dart';
 import 'package:flutter_aliplayer/flutter_aliliveshiftplayer.dart';
+import 'package:flutter_aliplayer/flutter_aliplayer_mock.dart';
+import 'package:flutter_aliplayer/flutter_aliplayer_mock_ext.dart';
 
 class FlutterAliPlayerFactory {
-  static MethodChannel methodChannel =
-      MethodChannel("plugins.flutter_aliplayer_factory");
-
   static Map<String, FlutterAliplayer> instanceMap = {};
 
   /// 创建短视频列表播放
   static FlutterAliListPlayer createAliListPlayer({playerId}) {
-    FlutterAliListPlayer flutterAliListPlayer =
-        FlutterAliListPlayer.init(playerId);
-    flutterAliListPlayer.create();
-    return flutterAliListPlayer;
+    return FlutterAliListPlayerMock.init(playerId);
   }
 
   /// 创建普通播放器
   static FlutterAliplayer createAliPlayer({playerId}) {
-    FlutterAliplayer flutterAliplayer = FlutterAliplayer.init(playerId);
-    flutterAliplayer.create();
-    return flutterAliplayer;
+    return FlutterAliplayerMock.init(playerId);
   }
 
   static FlutterAliLiveShiftPlayer createAliLiveShiftPlayer({playerId}) {
-    FlutterAliLiveShiftPlayer flutterAliLiveShiftPlayer =
-        FlutterAliLiveShiftPlayer.init(playerId);
-    flutterAliLiveShiftPlayer.create();
-    return flutterAliLiveShiftPlayer;
+    return FlutterAliLiveShiftPlayerMock.init(playerId);
   }
 
   /// 初始化下载秘钥信息
   static Future<void> initService(Uint8List byteData) {
-    return methodChannel.invokeMethod("initService", byteData);
+    return Future.value();
   }
 
   /// 初始化license证书服务
   /// 仅对iOS系统有效
   static Future<void> initLicenseServiceForIOS() {
-    return methodChannel.invokeMethod("initLicenseServiceForIOS");
+    return Future.value();
   }
 
   static void showFloatViewForAndroid(int viewId) {
-    methodChannel.invokeMethod("showFloatViewForAndroid", viewId);
+    // No-op
   }
 
   static void hideFloatViewForAndroid() {
-    methodChannel.invokeMethod("hideFloatViewForAndroid");
+    // No-op
   }
 
   /// 选择sdk
   static void loadRtsLibrary(bool isAliPlayerSDK) async {
-    if (Platform.isAndroid) {
-      methodChannel.invokeMethod("loadRtsLibrary", isAliPlayerSDK);
-    }
+    // No-op
   }
 }

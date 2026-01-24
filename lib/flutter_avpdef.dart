@@ -174,66 +174,6 @@ class PixelNumber {
   static const int Resolution_NoLimit = 2147483647;
 }
 
-class AVPMediaInfo {
-  String? status;
-  String? mediaType;
-  List<AVPThumbnailInfo>? thumbnails = [];
-  List<AVPTrackInfo>? tracks = [];
-  String? title;
-  int? duration;
-  String? transcodeMode;
-  String? coverURL;
-
-  AVPMediaInfo(
-      {this.status,
-      this.mediaType,
-      this.thumbnails,
-      this.tracks,
-      this.title,
-      this.duration,
-      this.transcodeMode,
-      this.coverURL});
-
-  AVPMediaInfo.fromJson(Map<dynamic, dynamic> json) {
-    status = json['status'];
-    mediaType = json['mediaType'];
-    if (json['thumbnails'] != null) {
-      // thumbnails = new List<AVPThumbnailInfo>();
-      // thumbnails = List.empty();
-      json['thumbnails'].forEach((v) {
-        thumbnails!.add(new AVPThumbnailInfo.fromJson(v));
-      });
-    }
-    if (json['tracks'] != null) {
-      // tracks = new List<AVPTrackInfo>();
-      json['tracks'].forEach((v) {
-        tracks!.add(new AVPTrackInfo.fromJson(v));
-      });
-    }
-    title = json['title'];
-    duration = json['duration'];
-    transcodeMode = json['transcodeMode'];
-    coverURL = json['coverURL'];
-  }
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['status'] = this.status;
-    data['mediaType'] = this.mediaType;
-    if (this.thumbnails != null) {
-      data['thumbnails'] = this.thumbnails!.map((v) => v.toJson()).toList();
-    }
-    if (this.tracks != null) {
-      data['tracks'] = this.tracks!.map((v) => v.toJson()).toList();
-    }
-    data['title'] = this.title;
-    data['duration'] = this.duration;
-    data['transcodeMode'] = this.transcodeMode;
-    data['coverURL'] = this.coverURL;
-    return data;
-  }
-}
-
 class AVPTrackInfo {
   String? vodFormat;
   int? videoHeight;
@@ -313,6 +253,65 @@ class AVPThumbnailInfo {
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = new Map<String, dynamic>();
     data['url'] = this.url;
+    return data;
+  }
+}
+
+class AVPMediaInfo {
+  String? status;
+  String? mediaType;
+  List<AVPThumbnailInfo>? thumbnails = [];
+  List<AVPTrackInfo>? tracks = [];
+  String? title;
+  int? duration;
+  String? transcodeMode;
+  String? coverURL;
+
+  AVPMediaInfo(
+      {this.status,
+      this.mediaType,
+      this.thumbnails,
+      this.tracks,
+      this.title,
+      this.duration,
+      this.transcodeMode,
+      this.coverURL});
+
+  AVPMediaInfo.fromJson(Map<dynamic, dynamic> json) {
+    status = json['status'];
+    mediaType = json['mediaType'];
+    if (json['thumbnails'] != null) {
+      thumbnails = [];
+      json['thumbnails'].forEach((v) {
+        thumbnails!.add(new AVPThumbnailInfo.fromJson(v));
+      });
+    }
+    if (json['tracks'] != null) {
+      tracks = [];
+      json['tracks'].forEach((v) {
+        tracks!.add(new AVPTrackInfo.fromJson(v));
+      });
+    }
+    title = json['title'];
+    duration = json['duration'];
+    transcodeMode = json['transcodeMode'];
+    coverURL = json['coverURL'];
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = new Map<String, dynamic>();
+    data['status'] = this.status;
+    data['mediaType'] = this.mediaType;
+    if (this.thumbnails != null) {
+      data['thumbnails'] = this.thumbnails!.map((v) => v.toJson()).toList();
+    }
+    if (this.tracks != null) {
+      data['tracks'] = this.tracks!.map((v) => v.toJson()).toList();
+    }
+    data['title'] = this.title;
+    data['duration'] = this.duration;
+    data['transcodeMode'] = this.transcodeMode;
+    data['coverURL'] = this.coverURL;
     return data;
   }
 }
