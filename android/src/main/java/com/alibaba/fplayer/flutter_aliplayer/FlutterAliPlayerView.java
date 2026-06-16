@@ -133,7 +133,12 @@ public class FlutterAliPlayerView implements PlatformView {
 
                 @Override
                 public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surfaceTexture, int i, int i1) {
-
+                    // TextureView 尺寸变化（如横竖屏切换）时，主动通知播放器重新按新 surface 尺寸重排，
+                    // 否则 SDK 仍按旧尺寸渲染，导致横屏后画面仍是竖屏尺寸。
+                    // 与 SurfaceView 路径的 surfaceChanged 回调保持一致。
+                    if (mPlayer != null) {
+                        mPlayer.surfaceChanged();
+                    }
                 }
 
                 @Override

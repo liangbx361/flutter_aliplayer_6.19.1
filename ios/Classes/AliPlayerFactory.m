@@ -379,15 +379,16 @@ id _Nullable
 - (void)getScalingMode:(NSArray *)arr {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
+    // 返回值遵循 Dart 侧 flutter_avpdef.dart 常量:TOFILL=0, FIT=1, FILL=2(与 setScalingMode 对称)
     int mode = 0;
     switch (proxy.player.scalingMode) {
-        case AVP_SCALINGMODE_SCALEASPECTFIT:
+        case AVP_SCALINGMODE_SCALETOFILL:
             mode = 0;
             break;
-        case AVP_SCALINGMODE_SCALEASPECTFILL:
+        case AVP_SCALINGMODE_SCALEASPECTFIT:
             mode = 1;
             break;
-        case AVP_SCALINGMODE_SCALETOFILL:
+        case AVP_SCALINGMODE_SCALEASPECTFILL:
             mode = 2;
             break;
 
@@ -397,21 +398,25 @@ id _Nullable
     result(@(mode));
 }
 
+// 入参遵循 Dart 侧 flutter_avpdef.dart 的常量值:
+// SCALETOFILL=0, SCALEASPECTFIT=1, SCALEASPECTFILL=2。
+// 原实现按 Android SDK 枚举顺序(FIT=0/FILL=1/TOFILL=2)解释,整体错一位,
+// 表现为 fill 变 contain、contain 变 crop。Android 端同名修复见 fork 的
+// FlutterAliPlayer.java setScaleMode。
 - (void)setScalingMode:(NSArray *)arr {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
     NSNumber *val = arr[3];
-//    与android保持一致
     int mode = AVP_SCALINGMODE_SCALEASPECTFIT;
     switch (val.intValue) {
         case 0:
-            mode = AVP_SCALINGMODE_SCALEASPECTFIT;
+            mode = AVP_SCALINGMODE_SCALETOFILL;
             break;
         case 1:
-            mode = AVP_SCALINGMODE_SCALEASPECTFILL;
+            mode = AVP_SCALINGMODE_SCALEASPECTFIT;
             break;
         case 2:
-            mode = AVP_SCALINGMODE_SCALETOFILL;
+            mode = AVP_SCALINGMODE_SCALEASPECTFILL;
             break;
 
         default:

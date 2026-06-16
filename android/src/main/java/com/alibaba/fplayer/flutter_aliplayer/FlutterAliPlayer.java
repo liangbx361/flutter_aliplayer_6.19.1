@@ -847,14 +847,21 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
         }
     }
 
+    // Dart 侧传入的是 AVP 缩放常量（FlutterAvpdef）：0=ScaleToFill, 1=AspectFit, 2=AspectFill，
+    // 与 Android SDK 的 IPlayer.ScaleMode 枚举值（FIT=0, FILL=1, TO_FILL=2）并不一致，必须显式转换，
+    // 否则 contain(=1) 会被当作 SCALE_ASPECT_FILL 导致竖屏片源在横屏下被裁剪。
+    private static final int AVP_SCALINGMODE_SCALETOFILL = 0;
+    private static final int AVP_SCALINGMODE_SCALEASPECTFIT = 1;
+    private static final int AVP_SCALINGMODE_SCALEASPECTFILL = 2;
+
     private void setScaleMode(AliPlayer mAliPlayer, int model) {
         if (mAliPlayer != null) {
             IPlayer.ScaleMode mScaleMode = IPlayer.ScaleMode.SCALE_ASPECT_FIT;
-            if (model == IPlayer.ScaleMode.SCALE_ASPECT_FIT.getValue()) {
+            if (model == AVP_SCALINGMODE_SCALEASPECTFIT) {
                 mScaleMode = IPlayer.ScaleMode.SCALE_ASPECT_FIT;
-            } else if (model == IPlayer.ScaleMode.SCALE_ASPECT_FILL.getValue()) {
+            } else if (model == AVP_SCALINGMODE_SCALEASPECTFILL) {
                 mScaleMode = IPlayer.ScaleMode.SCALE_ASPECT_FILL;
-            } else if (model == IPlayer.ScaleMode.SCALE_TO_FILL.getValue()) {
+            } else if (model == AVP_SCALINGMODE_SCALETOFILL) {
                 mScaleMode = IPlayer.ScaleMode.SCALE_TO_FILL;
             }
             mAliPlayer.setScaleMode(mScaleMode);
@@ -862,9 +869,16 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
     }
 
     private int getScaleMode(AliPlayer mAliPlayer) {
-        int scaleMode = IPlayer.ScaleMode.SCALE_ASPECT_FIT.getValue();
+        int scaleMode = AVP_SCALINGMODE_SCALEASPECTFIT;
         if (mAliPlayer != null) {
-            scaleMode = mAliPlayer.getScaleMode().getValue();
+            IPlayer.ScaleMode mScaleMode = mAliPlayer.getScaleMode();
+            if (mScaleMode == IPlayer.ScaleMode.SCALE_ASPECT_FILL) {
+                scaleMode = AVP_SCALINGMODE_SCALEASPECTFILL;
+            } else if (mScaleMode == IPlayer.ScaleMode.SCALE_TO_FILL) {
+                scaleMode = AVP_SCALINGMODE_SCALETOFILL;
+            } else {
+                scaleMode = AVP_SCALINGMODE_SCALEASPECTFIT;
+            }
         }
         return scaleMode;
     }

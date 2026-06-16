@@ -34,3 +34,4 @@ gradle/wrapper/gradle-wrapper.jar
 gradle/wrapper/gradle-wrapper.properties
 .dart_tool/*
 .packages
+build

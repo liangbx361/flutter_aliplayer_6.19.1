@@ -1416,6 +1416,9 @@ class AliPlayerView extends StatefulWidget {
   State<StatefulWidget> createState() => _VideoPlayerState();
 }
 
+// UiKitView 容器的 frame 由 Flutter 引擎管理,切勿在尺寸变化时通过 MethodChannel
+// 手动下发 frame——会与引擎双写竞争,旋转中把 frame 写坏。SDK 内部渲染层的尺寸同步
+// 由 iOS 侧容器视图的 layoutSubviews 负责。
 class _VideoPlayerState extends State<AliPlayerView> {
   @override
   Widget build(BuildContext context) {
