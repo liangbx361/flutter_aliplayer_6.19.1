@@ -934,7 +934,7 @@ NSString *hashCallback(NSString *url) {
                 @"disableVideo": @"mDisableVideo",
         };
     }];
-    config = [AVPConfig mj_objectWithKeyValues:val];
+    [config mj_setKeyValues:val];
     [proxy.player setConfig:config];
     result(nil);
 }

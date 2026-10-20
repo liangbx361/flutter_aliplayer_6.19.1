@@ -410,6 +410,13 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
             case "getVolume":
                 result.success(getVolume(mAliPlayer));
                 break;
+            case "getCurrentPosition":
+                if (mAliPlayer == null) {
+                    result.error("PLAYER_RELEASED", "The player has been released", null);
+                } else {
+                    result.success(mAliPlayer.getCurrentPosition());
+                }
+                break;
             case "setConfig": {
                 Map<String, Object> setConfigMap = (Map<String, Object>) methodCall.argument("arg");
                 PlayerConfig config = getConfig(mAliPlayer);
