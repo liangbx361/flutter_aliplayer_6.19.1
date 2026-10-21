@@ -22,6 +22,7 @@ AliPlayerAudioSesstionTypeNone,
 @interface AliPlayerFactory () {
     NSObject <FlutterBinaryMessenger> *_messenger;
     FlutterMethodChannel *_commonChannel;
+    FlutterMethodChannel *_sourceRefreshChannel;
     UIView *playerView;
 }
 
@@ -47,6 +48,7 @@ AliPlayerAudioSesstionTypeNone,
         _playerProxyDic = @{}.mutableCopy;
 
         _commonChannel = [FlutterMethodChannel methodChannelWithName:@"plugins.flutter_aliplayer_factory" binaryMessenger:messenger];
+        _sourceRefreshChannel = [FlutterMethodChannel methodChannelWithName:@"plugins.flutter_aliplayer_source_refresh" binaryMessenger:messenger];
         [_commonChannel setMethodCallHandler:^(FlutterMethodCall *call, FlutterResult result) {
             NSObject *obj = [call arguments];
             if ([obj isKindOfClass:NSDictionary.class]) {
@@ -152,10 +154,12 @@ id _Nullable
     NSDictionary *dic = [call arguments];
     NSString *playerId = [dic objectForKey:@"playerId"];
     NSNumber *type = [dic objectForKey:@"arg"];
+    [[_playerProxyDic objectForKey:playerId] disposeSourceRefreshCallbacks];
     AliPlayerProxy *proxy = [AliPlayerProxy new];
     proxy.playerType = type.intValue;
     proxy.playerId = playerId;
     proxy.eventSink = self.eventSink;
+    proxy.sourceRefreshChannel = _sourceRefreshChannel;
 
     [_playerProxyDic setObject:proxy forKey:playerId];
 
@@ -180,11 +184,36 @@ id _Nullable
     [AliPlayerLogger logDebug:@"setUrl - 设置新视频源: %@", url];
     
     AVPUrlSource *source = [[AVPUrlSource alloc] urlWithString:url];
+    [proxy invalidateSourceRefreshCallbacks];
     [proxy.player setUrlSource:source];
     
     // 注意：PIP状态处理现在由状态监控机制自动处理
     
     result(nil);
+}
+
+- (void)setOnVidAuthExpiredCallback:(NSArray *)arr {
+    FlutterResult result = arr[1];
+    AliPlayerProxy *proxy = arr[2];
+    if (![arr[3] isKindOfClass:NSNumber.class]) {
+        result([FlutterError errorWithCode:@"INVALID_ARGUMENT" message:@"Expected a callback enabled flag" details:nil]);
+    } else if (![proxy setVidAuthExpiredCallbackEnabled:[arr[3] boolValue]]) {
+        result([FlutterError errorWithCode:@"UNSUPPORTED" message:@"The player SDK does not support VidAuth source refresh" details:nil]);
+    } else {
+        result(nil);
+    }
+}
+
+- (void)setOnURLSourceExpiredCallback:(NSArray *)arr {
+    FlutterResult result = arr[1];
+    AliPlayerProxy *proxy = arr[2];
+    if (![arr[3] isKindOfClass:NSNumber.class]) {
+        result([FlutterError errorWithCode:@"INVALID_ARGUMENT" message:@"Expected a callback enabled flag" details:nil]);
+    } else if (![proxy setURLSourceExpiredCallbackEnabled:[arr[3] boolValue]]) {
+        result([FlutterError errorWithCode:@"UNSUPPORTED" message:@"The player SDK does not support URL source refresh" details:nil]);
+    } else {
+        result(nil);
+    }
 }
 
 - (void)prepare:(NSArray *)arr {
@@ -232,6 +261,7 @@ id _Nullable
     [AliPlayerLogger logDebug:@"stop - 停止当前播放"];
     
     // 简化处理：直接stop，PIP状态由监控机制自动处理
+    [proxy invalidateSourceRefreshCallbacks];
     [proxy.player stop];
     
     result(nil);
@@ -240,6 +270,7 @@ id _Nullable
 - (void)destroy:(NSArray *)arr {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
+    [proxy disposeSourceRefreshCallbacks];
     [proxy.player destroy];
 
     if ([_playerProxyDic objectForKey:proxy.playerId]) {
@@ -264,6 +295,7 @@ id _Nullable
 - (void)releaseAsync:(NSArray *)arr {
     FlutterResult result = arr[1];
     AliPlayerProxy *proxy = arr[2];
+    [proxy disposeSourceRefreshCallbacks];
     [proxy.player destroyAsync];
 
     if ([_playerProxyDic objectForKey:proxy.playerId]) {
@@ -1168,6 +1200,7 @@ NSString *hashCallback(NSString *url) {
     }
 
     [self setSource:source withDefinitions:dic];
+    [proxy invalidateSourceRefreshCallbacks];
     [proxy.player setStsSource:source];
     result(nil);
 }
@@ -1184,6 +1217,7 @@ NSString *hashCallback(NSString *url) {
     }
 
     [self setSource:source withDefinitions:dic];
+    [proxy invalidateSourceRefreshCallbacks];
     [proxy.player setAuthSource:source];
     result(nil);
 }
@@ -1202,6 +1236,7 @@ NSString *hashCallback(NSString *url) {
     [source setAuthInfo:dic[@"authInfo"]];
     [source setMtsHlsUriToken:dic[@"hlsUriToken"]];
     [self setSource:source withDefinitions:dic];
+    [proxy invalidateSourceRefreshCallbacks];
     [proxy.player setMpsSource:source];
     result(nil);
 }
@@ -1213,6 +1248,7 @@ NSString *hashCallback(NSString *url) {
     AVPLiveStsSource *source = [AVPLiveStsSource mj_objectWithKeyValues:dic];
     [self setSource:source withDefinitions:dic];
 
+    [proxy invalidateSourceRefreshCallbacks];
     [proxy.player setLiveStsSource:source];
     result(nil);
 }

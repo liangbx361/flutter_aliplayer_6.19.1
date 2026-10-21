@@ -41,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 //@property(nonatomic,strong) FlutterResult result;
 @property (nonatomic, copy) FlutterEventSink eventSink;
+@property (nonatomic, strong, nullable) FlutterMethodChannel *sourceRefreshChannel;
 
 @property(nonatomic,strong) NSString *snapshotPath;
 
@@ -56,6 +57,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) AVPictureInPictureController *pipController;
 
 -(void)bindPlayerView:(FlutterAliPlayerView*)fapv;
+
+- (BOOL)setVidAuthExpiredCallbackEnabled:(BOOL)enabled;
+- (BOOL)setURLSourceExpiredCallbackEnabled:(BOOL)enabled;
+- (void)invalidateSourceRefreshCallbacks;
+- (void)disposeSourceRefreshCallbacks;
 
 // 🛡️ PIP 安全相关方法
 -(void)safeInvalidatePlaybackStateWithDelay:(NSTimeInterval)delay context:(NSString *)context;

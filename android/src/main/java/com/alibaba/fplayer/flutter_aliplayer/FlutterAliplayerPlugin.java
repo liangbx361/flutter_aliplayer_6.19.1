@@ -92,6 +92,16 @@ public class FlutterAliplayerPlugin extends PlatformViewFactory implements Flutt
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
         switch (call.method) {
+            case "setOnVidAuthExpiredCallback":
+            case "setOnURLSourceExpiredCallback":
+                String refreshPlayerId = call.argument("playerId");
+                FlutterAliPlayer refreshPlayer = mFlutterAliPlayerMap.get(refreshPlayerId);
+                if (refreshPlayer == null) {
+                    result.error("unsupported_player_type", "Source refresh callbacks require a regular AliPlayer", null);
+                } else {
+                    refreshPlayer.onMethodCall(call, result);
+                }
+                break;
             case "showFloatViewForAndroid":
                 int showFloatViewId = (int) call.arguments;
                 FlutterAliPlayerView showFlutterAliPlayerView = mFlutterAliPlayerViewMap.get(showFloatViewId);
@@ -107,6 +117,10 @@ public class FlutterAliplayerPlugin extends PlatformViewFactory implements Flutt
                 if (0 == playerType) {
                     //AliPlayer
                     String createPlayerId = call.argument("playerId");
+                    FlutterAliPlayer previousPlayer = mFlutterAliPlayerMap.get(createPlayerId);
+                    if (previousPlayer != null) {
+                        previousPlayer.disposeSourceRefreshCallbacks();
+                    }
                     FlutterAliPlayer flutterAliPlayer = new FlutterAliPlayer(flutterPluginBinding, createPlayerId);
                     initListener(flutterAliPlayer);
                     mFlutterAliPlayerMap.put(createPlayerId, flutterAliPlayer);

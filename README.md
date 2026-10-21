@@ -247,6 +247,56 @@ var configMap = {
 widget.fAliplayer.setConfig(configMap);
 ```
 
+### 4. 播放源鉴权过期刷新
+
+业务侧恢复流程、并发控制和进度续播要求参见 [播放器鉴权过期业务接入方案](docs/playback_source_refresh_business_integration.md)。
+
+普通 `AliPlayer` 支持以下两个回调，要求 Android/iOS 原生播放器 SDK **7.9.0 或以上**。自定义 `player_sdk_version` 或使用 `useAIOFramework` 时，也需满足此要求。
+
+```dart
+// 在设置播放源、prepare 之前 await 注册。
+await fAliplayer.setOnVidAuthExpiredCallback((vid, callback, playerId) async {
+  try {
+    // 业务层请求自己的服务端；插件不发起业务网络请求。
+    final newPlayAuth = await api.getPlayAuth(vid);
+    callback.onSuccess(newPlayAuth);
+  } catch (error) {
+    callback.onError(error.toString());
+  }
+});
+
+await fAliplayer.setOnURLSourceExpiredCallback((expiredUrl, callback, playerId) async {
+  try {
+    final newUrl = await api.refreshPlaybackUrl(expiredUrl);
+    // HLS 返回新的完整 m3u8 播放地址，而不是单个 ts 切片地址。
+    callback.onSuccess(newUrl);
+  } catch (error) {
+    callback.onError(error.toString());
+  }
+});
+
+// 不再需要刷新时取消对应监听。
+await fAliplayer.setOnURLSourceExpiredCallback(null);
+```
+
+`VidAuth` 回调对应 `setVidAuth`，新 PlayAuth 会写回 SDK 提供的原播放源；URL 回调对应 `setUrl`，只替换原播放源的 URL。其他源配置保留。两个回调按播放源类型区分，并非按 m3u8 与 ts 区分。
+
+业务层负责刷新凭证、重试、超时和失败策略。每次请求需调用一次 `onSuccess` 或 `onError`；重复提交会被忽略，回调抛出的同步或异步异常会转为刷新失败。切换播放源、停止、销毁播放器或取消/替换对应监听时，尚未完成的刷新会作废，迟到结果不会更新后续播放源。异步释放使用本插件的 `releaseAsync()`。
+
+入口播放地址过期和 HLS 播放中切片鉴权过期，都在 **SDK 识别播放源失效并发出通知后**，通过上述桥接交给业务层刷新。SDK 未识别的请求错误仍通过原有 `setOnError` 通知，业务层可据错误信息执行恢复或提示。插件不会把所有 403（例如权限不足、密钥请求失败）都判定为鉴权过期，也不会自行重试或调用 `setUrl/prepare`。
+
+入口与切片场景需要分别进行真机验收；Flutter 单元测试只验证桥接及生命周期，不能证明 SDK 对具体 HTTP 失败的识别能力：
+
+| 场景 | 验收步骤与预期 |
+| --- | --- |
+| 入口 URL 过期 | 使用过期 m3u8 地址起播；确认对应源类型的回调触发，业务返回新凭证/地址后，SDK 请求有效播放源。 |
+| 切片鉴权过期 | 先成功加载 m3u8 和部分切片，再让未缓存切片的鉴权失效（需控制缓冲或 seek 到未缓存位置）；确认回调触发，刷新后请求携带有效鉴权并从正确进度恢复，缓存 m3u8 场景也需覆盖。 |
+| SDK 未识别切片失效 | 确认仍收到原有错误回调，由业务层决定后续恢复；不能将此结果算作自动刷新验收通过。 |
+
+当前验证：新增的 13 项 Flutter 桥接测试通过；Android 源码通过 SDK 7.18.0 编译，iOS 两个修改的实现文件通过 SDK 7.18.0 头文件语法检查。Android 模拟器中的独立测试包受 `LICENSE_ERROR_INVALID / NoDefaultLicense` 阻挡，入口和切片的鉴权过期续播均尚未验收，需在有效 License 的业务包中完成。普通本地 HTTP 403 曾仅触发错误通知，不能据此认定真实 CDN 鉴权过期不会触发刷新。
+
+参考：[阿里云自动刷新播放源及本地缓存说明](https://help.aliyun.com/zh/vod/developer-reference/advanced-features-1)。
+
 ## AliListPlayer
 
 ```dart

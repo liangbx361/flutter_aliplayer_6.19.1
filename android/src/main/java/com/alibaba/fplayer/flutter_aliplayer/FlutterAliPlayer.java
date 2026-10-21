@@ -1,12 +1,15 @@
 package com.alibaba.fplayer.flutter_aliplayer;
 
 import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 
 import com.aliyun.player.AliPlayer;
 import com.aliyun.player.AliPlayerFactory;
 import com.aliyun.player.FilterConfig;
 import com.aliyun.player.IPlayer;
+import com.aliyun.player.UrlPlayer;
 import com.aliyun.player.VidPlayerConfigGen;
 import com.aliyun.player.nativeclass.CacheConfig;
 import com.aliyun.player.nativeclass.MediaInfo;
@@ -14,6 +17,7 @@ import com.aliyun.player.nativeclass.PlayerConfig;
 import com.aliyun.player.nativeclass.TrackInfo;
 import com.aliyun.player.source.Definition;
 import com.aliyun.player.source.LiveSts;
+import com.aliyun.player.source.SourceBase;
 import com.aliyun.player.source.StsInfo;
 import com.aliyun.player.source.UrlSource;
 import com.aliyun.player.source.VidAuth;
@@ -40,11 +44,21 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
     private final Gson mGson;
     private ThumbnailHelper mThumbnailHelper;
     private AliPlayer mAliPlayer;
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+    private final MethodChannel mSourceRefreshChannel;
+    private SourceBase mCurrentSource;
+    private volatile long mSourceGeneration;
+    private volatile long mVidAuthListenerGeneration;
+    private volatile long mUrlSourceListenerGeneration;
+    private boolean mVidAuthRefreshEnabled;
+    private boolean mUrlSourceRefreshEnabled;
 
     public FlutterAliPlayer(FlutterPlugin.FlutterPluginBinding flutterPluginBinding, String playerId) {
         this.mPlayerId = playerId;
         this.mContext = flutterPluginBinding.getApplicationContext();
         mGson = new Gson();
+        mSourceRefreshChannel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(),
+                "plugins.flutter_aliplayer_source_refresh");
         mAliPlayer = AliPlayerFactory.createAliPlayer(mContext);
         initListener(mAliPlayer);
     }
@@ -55,6 +69,14 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
 
     public void onMethodCall(MethodCall methodCall, MethodChannel.Result result) {
         switch (methodCall.method) {
+            case "setOnVidAuthExpiredCallback":
+                setOnVidAuthExpiredCallback(Boolean.TRUE.equals(methodCall.argument("arg")));
+                result.success(null);
+                break;
+            case "setOnURLSourceExpiredCallback":
+                setOnURLSourceExpiredCallback(Boolean.TRUE.equals(methodCall.argument("arg")));
+                result.success(null);
+                break;
             case "setUrl":
                 String url = methodCall.argument("arg");
                 setDataSource(mAliPlayer, url);
@@ -660,34 +682,156 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
         return mAliPlayer;
     }
 
+    private void setOnVidAuthExpiredCallback(boolean enabled) {
+        mVidAuthRefreshEnabled = enabled;
+        final long listenerGeneration = ++mVidAuthListenerGeneration;
+        if (mAliPlayer != null) {
+            mAliPlayer.setOnVidAuthExpiredListener(enabled ? new AliPlayer.OnVidAuthExpiredListener() {
+                @Override
+                public void onVidAuthExpired(VidAuth source, UrlPlayer.SourceRefreshCallback<VidAuth> callback) {
+                    requestSourceRefresh("onVidAuthExpired", source == null ? null : source.getVid(),
+                            source, callback, mSourceGeneration, listenerGeneration);
+                }
+            } : null);
+        }
+    }
+
+    private void setOnURLSourceExpiredCallback(boolean enabled) {
+        mUrlSourceRefreshEnabled = enabled;
+        final long listenerGeneration = ++mUrlSourceListenerGeneration;
+        if (mAliPlayer != null) {
+            mAliPlayer.setOnURLSourceExpiredListener(enabled ? new UrlPlayer.OnURLSourceExpiredListener() {
+                @Override
+                public void onUrlSourceExpired(UrlSource source, UrlPlayer.SourceRefreshCallback<UrlSource> callback) {
+                    requestSourceRefresh("onURLSourceExpired", source == null ? null : source.getUri(),
+                            source, callback, mSourceGeneration, listenerGeneration);
+                }
+            } : null);
+        }
+    }
+
+    private boolean isCurrentSourceRefresh(SourceBase source, long sourceGeneration) {
+        if (mAliPlayer == null || mSourceGeneration != sourceGeneration) {
+            return false;
+        }
+        if (source instanceof VidAuth && mCurrentSource instanceof VidAuth) {
+            return TextUtils.equals(((VidAuth) source).getVid(), ((VidAuth) mCurrentSource).getVid());
+        }
+        if (source instanceof UrlSource && mCurrentSource instanceof UrlSource) {
+            return TextUtils.equals(((UrlSource) source).getUri(), ((UrlSource) mCurrentSource).getUri());
+        }
+        return false;
+    }
+
+    private boolean canCompleteSourceRefresh(SourceBase source, long sourceGeneration, long listenerGeneration,
+            UrlPlayer.SourceRefreshCallback<?> callback) {
+        if (!isCurrentSourceRefresh(source, sourceGeneration)) {
+            return false;
+        }
+        boolean listenerCurrent = source instanceof VidAuth
+                ? mVidAuthRefreshEnabled && mVidAuthListenerGeneration == listenerGeneration
+                : mUrlSourceRefreshEnabled && mUrlSourceListenerGeneration == listenerGeneration;
+        if (!listenerCurrent) {
+            callback.onError("Source refresh callback was replaced or removed");
+        }
+        return listenerCurrent;
+    }
+
+    private <T extends SourceBase> void requestSourceRefresh(String method, String expiredValue, T source,
+            UrlPlayer.SourceRefreshCallback<T> callback, long sourceGeneration, long listenerGeneration) {
+        mMainHandler.post(() -> {
+            if (callback == null || !canCompleteSourceRefresh(source, sourceGeneration, listenerGeneration, callback)) {
+                return;
+            }
+            Map<String, Object> arguments = new HashMap<>();
+            arguments.put("playerId", mPlayerId);
+            arguments.put("value", expiredValue);
+            mSourceRefreshChannel.invokeMethod(method, arguments, new MethodChannel.Result() {
+                @Override
+                public void success(Object result) {
+                    if (!canCompleteSourceRefresh(source, sourceGeneration, listenerGeneration, callback)) {
+                        return;
+                    }
+                    if (!(result instanceof Map)) {
+                        callback.onError("Invalid source refresh response");
+                        return;
+                    }
+                    Map<?, ?> response = (Map<?, ?>) result;
+                    if (response.containsKey("errorMsg")) {
+                        Object error = response.get("errorMsg");
+                        callback.onError(error instanceof String ? (String) error : "Invalid source refresh error");
+                        return;
+                    }
+                    Object value = response.get("value");
+                    if (!(value instanceof String) || TextUtils.isEmpty((String) value)) {
+                        callback.onError("Source refresh returned an empty value");
+                        return;
+                    }
+                    // Keep the SDK's source settings and replace only the refreshed credential.
+                    if (source instanceof VidAuth) {
+                        ((VidAuth) source).setPlayAuth((String) value);
+                    } else {
+                        ((UrlSource) source).setUri((String) value);
+                    }
+                    mCurrentSource = source;
+                    callback.onSuccess(source);
+                }
+
+                @Override
+                public void error(String errorCode, String errorMessage, Object errorDetails) {
+                    if (canCompleteSourceRefresh(source, sourceGeneration, listenerGeneration, callback)) {
+                        callback.onError(errorMessage == null ? "Source refresh failed" : errorMessage);
+                    }
+                }
+
+                @Override
+                public void notImplemented() {
+                    if (canCompleteSourceRefresh(source, sourceGeneration, listenerGeneration, callback)) {
+                        callback.onError("Source refresh callback is not registered");
+                    }
+                }
+            });
+        });
+    }
+
+    private void changeSource(SourceBase source) {
+        ++mSourceGeneration;
+        mCurrentSource = source;
+    }
+
     private void setDataSource(AliPlayer mAliPlayer, String url) {
         if (mAliPlayer != null) {
             UrlSource urlSource = new UrlSource();
             urlSource.setUri(url);
+            changeSource(urlSource);
             ((AliPlayer) mAliPlayer).setDataSource(urlSource);
         }
     }
 
     private void setDataSource(AliPlayer mAliPlayer, VidSts vidSts) {
         if (mAliPlayer != null) {
+            changeSource(vidSts);
             ((AliPlayer) mAliPlayer).setDataSource(vidSts);
         }
     }
 
     private void setDataSource(AliPlayer mAliPlayer, VidAuth vidAuth) {
         if (mAliPlayer != null) {
+            changeSource(vidAuth);
             ((AliPlayer) mAliPlayer).setDataSource(vidAuth);
         }
     }
 
     private void setDataSource(AliPlayer mAliPlayer, VidMps vidMps) {
         if (mAliPlayer != null) {
+            changeSource(vidMps);
             ((AliPlayer) mAliPlayer).setDataSource(vidMps);
         }
     }
 
     private void setDataSource(AliPlayer mAliPlayer, LiveSts liveSts) {
         if (mAliPlayer != null) {
+            changeSource(liveSts);
             ((AliPlayer) mAliPlayer).setDataSource(liveSts);
         }
     }
@@ -711,6 +855,7 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
     }
 
     private void stop(AliPlayer mAliPlayer) {
+        ++mSourceGeneration;
         if (mAliPlayer != null) {
             mAliPlayer.stop();
         }
@@ -722,17 +867,31 @@ public class FlutterAliPlayer extends FlutterPlayerBase {
         }
     }
 
+    void disposeSourceRefreshCallbacks() {
+        changeSource(null);
+        mVidAuthRefreshEnabled = false;
+        mUrlSourceRefreshEnabled = false;
+        ++mVidAuthListenerGeneration;
+        ++mUrlSourceListenerGeneration;
+        if (mAliPlayer != null) {
+            mAliPlayer.setOnVidAuthExpiredListener(null);
+            mAliPlayer.setOnURLSourceExpiredListener(null);
+        }
+    }
+
     private void release(AliPlayer mAliPlayer) {
+        disposeSourceRefreshCallbacks();
         if (mAliPlayer != null) {
             mAliPlayer.release();
-            mAliPlayer = null;
+            this.mAliPlayer = null;
         }
     }
 
     private void releaseAsync(AliPlayer mAliPlayer) {
+        disposeSourceRefreshCallbacks();
         if (mAliPlayer != null) {
             mAliPlayer.releaseAsync();
-            mAliPlayer = null;
+            this.mAliPlayer = null;
         }
     }
 

@@ -27,9 +27,151 @@
 // 🛡️ PIP 安全机制
 @property (nonatomic, assign) NSTimeInterval lastInvalidateTime;
 @property (nonatomic, strong) NSString *lastInvalidateContext;
+
+@property (atomic, assign) NSUInteger sourceRefreshGeneration;
+@property (atomic, assign) NSUInteger vidAuthRefreshGeneration;
+@property (atomic, assign) NSUInteger URLRefreshGeneration;
+@property (atomic, assign) BOOL vidAuthRefreshEnabled;
+@property (atomic, assign) BOOL URLRefreshEnabled;
 @end
 
 @implementation AliPlayerProxy
+
+- (BOOL)setVidAuthExpiredCallbackEnabled:(BOOL)enabled {
+    return [self setSourceRefreshCallbackEnabled:enabled vidAuth:YES];
+}
+
+- (BOOL)setURLSourceExpiredCallbackEnabled:(BOOL)enabled {
+    return [self setSourceRefreshCallbackEnabled:enabled vidAuth:NO];
+}
+
+- (BOOL)setSourceRefreshCallbackEnabled:(BOOL)enabled vidAuth:(BOOL)vidAuth {
+    if (self.playerType != 0) {
+        return NO;
+    }
+    AliPlayer *player = enabled ? self.player : _player;
+    SEL selector = vidAuth ? @selector(setOnVidAuthExpiredCallback:) : @selector(setOnURLSourceExpiredCallback:);
+    if (player && ![player respondsToSelector:selector]) {
+        return NO;
+    }
+
+    NSUInteger listenerGeneration;
+    if (vidAuth) {
+        self.vidAuthRefreshEnabled = enabled;
+        listenerGeneration = ++self.vidAuthRefreshGeneration;
+    } else {
+        self.URLRefreshEnabled = enabled;
+        listenerGeneration = ++self.URLRefreshGeneration;
+    }
+
+    __weak typeof(self) weakSelf = self;
+    __weak AliPlayer *weakPlayer = player;
+    void (^handler)(id, id<AVPSourceRefreshCallback>) = nil;
+    if (enabled) {
+        handler = ^(id expiredSource, id<AVPSourceRefreshCallback> callback) {
+            AliPlayerProxy *proxy = weakSelf;
+            [proxy refreshExpiredSource:expiredSource callback:callback player:weakPlayer
+                               vidAuth:vidAuth sourceGeneration:proxy.sourceRefreshGeneration
+                    listenerGeneration:listenerGeneration];
+        };
+    }
+    if (vidAuth) {
+        [player setOnVidAuthExpiredCallback:handler];
+    } else {
+        [player setOnURLSourceExpiredCallback:handler];
+    }
+    return YES;
+}
+
+- (BOOL)checkSourceRefreshForPlayer:(AliPlayer *)player
+                           vidAuth:(BOOL)vidAuth
+                  sourceGeneration:(NSUInteger)sourceGeneration
+                listenerGeneration:(NSUInteger)listenerGeneration
+                          callback:(id<AVPSourceRefreshCallback>)callback {
+    if (!player || _player != player || self.sourceRefreshGeneration != sourceGeneration) {
+        return NO;
+    }
+    BOOL currentListener = vidAuth
+        ? (self.vidAuthRefreshEnabled && self.vidAuthRefreshGeneration == listenerGeneration)
+        : (self.URLRefreshEnabled && self.URLRefreshGeneration == listenerGeneration);
+    if (!currentListener) {
+        [callback onError:@"The refresh listener changed"];
+    }
+    return currentListener;
+}
+
+- (void)refreshExpiredSource:(id)expiredSource
+                   callback:(id<AVPSourceRefreshCallback>)callback
+                     player:(AliPlayer *)player
+                    vidAuth:(BOOL)vidAuth
+           sourceGeneration:(NSUInteger)sourceGeneration
+         listenerGeneration:(NSUInteger)listenerGeneration {
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AliPlayerProxy *proxy = weakSelf;
+        if (![proxy checkSourceRefreshForPlayer:player vidAuth:vidAuth
+                              sourceGeneration:sourceGeneration listenerGeneration:listenerGeneration callback:callback]) {
+            return;
+        }
+        BOOL validSource = vidAuth ? [expiredSource isKindOfClass:AVPVidAuthSource.class]
+                                   : [expiredSource isKindOfClass:AVPUrlSource.class];
+        if (!validSource || !proxy.sourceRefreshChannel) {
+            [callback onError:@"Source refresh is unavailable"];
+            return;
+        }
+        NSString *value = vidAuth ? ((AVPVidAuthSource *)expiredSource).vid
+                                 : ((AVPUrlSource *)expiredSource).playerUrl.absoluteString;
+        [proxy.sourceRefreshChannel invokeMethod:vidAuth ? @"onVidAuthExpired" : @"onURLSourceExpired"
+                                      arguments:@{@"playerId": proxy.playerId, @"value": value ?: @""}
+                                         result:^(id response) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                AliPlayerProxy *currentProxy = weakSelf;
+                // Do not use the lazy player getter: a late Dart result must never create a player.
+                if (![currentProxy checkSourceRefreshForPlayer:player vidAuth:vidAuth
+                                              sourceGeneration:sourceGeneration listenerGeneration:listenerGeneration callback:callback]) {
+                    return;
+                }
+                if ([response isKindOfClass:FlutterError.class]) {
+                    [callback onError:((FlutterError *)response).message ?: @"Source refresh failed"];
+                    return;
+                }
+                NSDictionary *reply = [response isKindOfClass:NSDictionary.class] ? response : nil;
+                NSString *errorMsg = reply[@"errorMsg"];
+                if ([errorMsg isKindOfClass:NSString.class]) {
+                    [callback onError:errorMsg];
+                    return;
+                }
+                NSString *newValue = reply[@"value"];
+                if (![newValue isKindOfClass:NSString.class] || newValue.length == 0) {
+                    [callback onError:@"Source refresh did not return a non-empty value"];
+                    return;
+                }
+                if (vidAuth) {
+                    ((AVPVidAuthSource *)expiredSource).playAuth = newValue;
+                } else {
+                    NSURL *url = [NSURL URLWithString:newValue];
+                    if (!url) {
+                        [callback onError:@"Source refresh returned an invalid URL"];
+                        return;
+                    }
+                    ((AVPUrlSource *)expiredSource).playerUrl = url;
+                }
+                [callback onSuccess:expiredSource];
+            });
+        }];
+    });
+}
+
+- (void)invalidateSourceRefreshCallbacks {
+    ++self.sourceRefreshGeneration;
+}
+
+- (void)disposeSourceRefreshCallbacks {
+    [self invalidateSourceRefreshCallbacks];
+    [self setVidAuthExpiredCallbackEnabled:NO];
+    [self setURLSourceExpiredCallbackEnabled:NO];
+    self.sourceRefreshChannel = nil;
+}
 
 #pragma mark AVPDelegate
 

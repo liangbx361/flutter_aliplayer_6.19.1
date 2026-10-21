@@ -61,7 +61,50 @@ typedef OnPipStatusChanged = void Function(bool playing, String playerId);
 typedef OnWillStartPip = void Function(bool pipStatus, String playerId);
 typedef OnWillStopPip = void Function(bool pipStatus, String playerId);
 
+/// 业务层获取新 PlayAuth 后调用 callback.onSuccess，失败时调用 callback.onError。
+typedef OnVidAuthExpiredCallback = FutureOr<void> Function(
+    String vid, SourceRefreshCallback callback, String playerId);
+
+/// 业务层获取新的完整播放 URL 后调用 callback.onSuccess。
+typedef OnURLSourceExpiredCallback = FutureOr<void> Function(
+    String url, SourceRefreshCallback callback, String playerId);
+
+/// 一次原生播放源刷新请求的结果。成功或失败只能提交一次。
+///
+/// VidAuth 刷新时传入新 PlayAuth，URL 刷新时传入新播放 URL。
+/// 切换播放源、停止或释放播放器后，迟到的结果会被忽略。
+class SourceRefreshCallback {
+  SourceRefreshCallback._(this._method);
+
+  final String _method;
+  final Completer<Map<String, String>> _result = Completer();
+
+  bool get isCompleted => _result.isCompleted;
+
+  void onSuccess(String value) {
+    if (isCompleted) return;
+    if (value.trim().isEmpty) {
+      onError('The refreshed source must not be empty');
+      return;
+    }
+    _result.complete({'value': value});
+  }
+
+  void onError(String errorMsg) {
+    if (isCompleted) return;
+    _result.complete({
+      'errorMsg': errorMsg.isEmpty ? 'Source refresh failed' : errorMsg,
+    });
+  }
+}
+
 class FlutterAliplayer {
+  static const MethodChannel _sourceRefreshChannel =
+      MethodChannel('plugins.flutter_aliplayer_source_refresh');
+  OnVidAuthExpiredCallback? _onVidAuthExpired;
+  OnURLSourceExpiredCallback? _onURLSourceExpired;
+  final Set<SourceRefreshCallback> _pendingSourceRefreshes = {};
+
   OnPipStatusChanged? onPipStatusChanged;
   OnWillStartPip? onWillStartPip;
   OnWillStopPip? onWillStopPip;
@@ -109,12 +152,83 @@ class FlutterAliplayer {
     if (id != null) {
       playerId = id;
     }
+    FlutterAliPlayerFactory.instanceMap[playerId]
+        ?._cancelSourceRefreshes('The player was replaced');
     FlutterAliPlayerFactory.instanceMap[playerId] = this;
     register();
   }
 
   void register() {
+    _sourceRefreshChannel.setMethodCallHandler(_handleSourceRefresh);
     eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onError);
+  }
+
+  /// 注册 VidAuth 源过期回调，包含 SDK 识别的 PlayAuth 或播放地址过期。
+  ///
+  /// 业务层负责获取新凭证，并调用 callback.onSuccess(newPlayAuth) 或
+  /// callback.onError(errorMsg)。传 null 取消监听。需原生 SDK 7.9.0+。
+  Future<void> setOnVidAuthExpiredCallback(
+      OnVidAuthExpiredCallback? callback) async {
+    _cancelSourceRefreshes('The refresh listener changed',
+        method: 'onVidAuthExpired');
+    _onVidAuthExpired = callback;
+    return FlutterAliPlayerFactory.methodChannel.invokeMethod(
+        'setOnVidAuthExpiredCallback', wrapWithPlayerId(arg: callback != null));
+  }
+
+  /// 注册 URL 源过期回调，由业务层返回新的完整播放 URL。
+  ///
+  /// 包括 SDK 识别的 HLS 播放中鉴权过期；不将任意切片 403 视为过期。
+  /// 调用 callback.onSuccess(newUrl) 或 callback.onError(errorMsg) 完成请求。
+  /// 传 null 取消监听。需原生 SDK 7.9.0+。
+  Future<void> setOnURLSourceExpiredCallback(
+      OnURLSourceExpiredCallback? callback) async {
+    _cancelSourceRefreshes('The refresh listener changed',
+        method: 'onURLSourceExpired');
+    _onURLSourceExpired = callback;
+    return FlutterAliPlayerFactory.methodChannel.invokeMethod(
+        'setOnURLSourceExpiredCallback',
+        wrapWithPlayerId(arg: callback != null));
+  }
+
+  static Future<Map<String, String>> _handleSourceRefresh(
+      MethodCall call) async {
+    if (call.method != 'onVidAuthExpired' &&
+        call.method != 'onURLSourceExpired') {
+      throw MissingPluginException('Unknown source refresh: ${call.method}');
+    }
+    final arguments = Map<String, dynamic>.from(call.arguments as Map);
+    final playerId = arguments['playerId'] as String;
+    final player = FlutterAliPlayerFactory.instanceMap[playerId];
+    if (player == null) {
+      return {'errorMsg': 'The player has been released'};
+    }
+    final callback = call.method == 'onVidAuthExpired'
+        ? player._onVidAuthExpired
+        : player._onURLSourceExpired;
+    if (callback == null) {
+      return {'errorMsg': 'No source refresh callback is registered'};
+    }
+    final result = SourceRefreshCallback._(call.method);
+    player._pendingSourceRefreshes.add(result);
+    unawaited(Future<void>.sync(
+            () => callback(arguments['value'] as String, result, playerId))
+        .catchError((Object error) {
+      result.onError(error.toString());
+    }));
+    try {
+      return await result._result.future;
+    } finally {
+      player._pendingSourceRefreshes.remove(result);
+    }
+  }
+
+  void _cancelSourceRefreshes(String reason, {String? method}) {
+    for (final request in _pendingSourceRefreshes.toList()) {
+      if (method == null || request._method == method) {
+        request.onError(reason);
+      }
+    }
   }
 
   /// 播放器事件回调，准备完成事件
@@ -281,6 +395,7 @@ class FlutterAliplayer {
 
   /// 使用url方式来播放视频
   Future<void> setUrl(String url) async {
+    _cancelSourceRefreshes('The playback source changed');
     return FlutterAliPlayerFactory.methodChannel
         .invokeMethod('setUrl', wrapWithPlayerId(arg: url));
   }
@@ -324,12 +439,14 @@ class FlutterAliplayer {
 
   /// 停止播放
   Future<void> stop() async {
+    _cancelSourceRefreshes('The player was stopped');
     return FlutterAliPlayerFactory.methodChannel
         .invokeMethod('stop', wrapWithPlayerId());
   }
 
   /// 销毁播放器
   Future<void> destroy() async {
+    _cancelSourceRefreshes('The player was released');
     FlutterAliPlayerFactory.instanceMap.remove(playerId);
     return FlutterAliPlayerFactory.methodChannel
         .invokeMethod('destroy', wrapWithPlayerId());
@@ -337,6 +454,7 @@ class FlutterAliplayer {
 
   /// 异步释放播放器
   Future<void> releaseAsync() async {
+    _cancelSourceRefreshes('The player was released');
     FlutterAliPlayerFactory.instanceMap.remove(playerId);
     return FlutterAliPlayerFactory.methodChannel
         .invokeMethod('releaseAsync', wrapWithPlayerId());
@@ -446,6 +564,7 @@ class FlutterAliplayer {
       String quality = "",
       bool forceQuality = false,
       playerId}) async {
+    _cancelSourceRefreshes('The playback source changed');
     Map<String, dynamic> stsInfo = {
       "vid": vid,
       "region": region,
@@ -473,6 +592,7 @@ class FlutterAliplayer {
       String quality = "",
       bool forceQuality = false,
       playerId}) async {
+    _cancelSourceRefreshes('The playback source changed');
     Map<String, dynamic> authInfo = {
       "vid": vid,
       "region": region,
@@ -489,6 +609,7 @@ class FlutterAliplayer {
   /// 用vid和MPS信息来播放视频
   /// 可参考：https://help.aliyun.com/document_detail/53522.html?spm=5176.doc53534.2.5.mhSfOh
   Future<void> setVidMps(Map<String, dynamic> mpsInfo) async {
+    _cancelSourceRefreshes('The playback source changed');
     return FlutterAliPlayerFactory.methodChannel
         .invokeMethod("setVidMps", wrapWithPlayerId(arg: mpsInfo));
   }
@@ -506,6 +627,7 @@ class FlutterAliplayer {
       EncryptionType? encryptionType,
       List<String>? definitionList,
       playerId}) async {
+    _cancelSourceRefreshes('The playback source changed');
     Map<String, dynamic> liveStsInfo = {
       "url": url,
       "accessKeyId": accessKeyId,
