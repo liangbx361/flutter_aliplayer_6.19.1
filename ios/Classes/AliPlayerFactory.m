@@ -879,7 +879,7 @@ id _Nullable
             break;
     }
     if (localCacheDir.length > 0) {
-        docDir = [docDir stringByAppendingPathComponent:localCacheDir];
+        docDir = [localCacheDir isAbsolutePath] ? localCacheDir : [docDir stringByAppendingPathComponent:localCacheDir];
     } else {
         docDir = [docDir stringByAppendingPathComponent:@"localCache"];
     }

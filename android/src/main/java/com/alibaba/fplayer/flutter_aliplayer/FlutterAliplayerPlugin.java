@@ -237,6 +237,7 @@ public class FlutterAliplayerPlugin extends PlatformViewFactory implements Flutt
                     String localCacheDir = (String) localCacheMap.get("localCacheDir");
                     AliPlayerGlobalSettings.enableLocalCache(enable, Integer.valueOf(maxBufferMemoryKB), localCacheDir);
                 }
+                result.success(null);
                 break;
             case "setCacheFileClearConfig":
                 Map<String, Object> cacheFileClearConfig = call.arguments();
@@ -246,9 +247,11 @@ public class FlutterAliplayerPlugin extends PlatformViewFactory implements Flutt
                     String freeStorageMB = (String) cacheFileClearConfig.get("freeStorageMB");
                     AliPlayerGlobalSettings.setCacheFileClearConfig(Long.parseLong(expireMin), Long.parseLong(maxCapacityMB), Long.parseLong(freeStorageMB));
                 }
+                result.success(null);
                 break;
             case "clearCaches":
                 AliPlayerGlobalSettings.clearCaches();
+                result.success(null);
                 break;
             case "isFeatureSupport":
                 result.success(AliPlayerFactory.isFeatureSupport(AliPlayerFactory.SupportFeatureType.FeatureDolbyAudio));
