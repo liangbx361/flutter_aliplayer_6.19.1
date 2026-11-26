@@ -53,6 +53,18 @@ typedef OnWillStartPip = void Function(bool isPip, String playerId);
 typedef OnWillStopPip = void Function(bool isPip, String playerId);
 typedef OnTrackReady = void Function(String playerId);
 
+typedef OnVidAuthExpiredCallback = FutureOr<void> Function(
+    String vid, SourceRefreshCallback callback, String playerId);
+typedef OnURLSourceExpiredCallback = FutureOr<void> Function(
+    String url, SourceRefreshCallback callback, String playerId);
+
+/// Matches the SDK-backed result API. The mock does not emit source expiry.
+abstract class SourceRefreshCallback {
+  bool get isCompleted;
+  void onSuccess(String value);
+  void onError(String errorMsg);
+}
+
 class FlutterAliplayer {
   String playerId = "";
   OnPrepared? onPrepared;
@@ -86,6 +98,8 @@ class FlutterAliplayer {
   OnWillStartPip? onWillStartPip;
   OnWillStopPip? onWillStopPip;
   OnTrackReady? onTrackReady;
+  OnVidAuthExpiredCallback? onVidAuthExpired;
+  OnURLSourceExpiredCallback? onURLSourceExpired;
 
   // Internal State
   int mState = FlutterAvpdef.idle;
@@ -149,6 +163,16 @@ class FlutterAliplayer {
       this.onTrackChanged = onTrackChanged;
   void setOnTrackReady(OnTrackReady onTrackReady) =>
       this.onTrackReady = onTrackReady;
+
+  Future<void> setOnVidAuthExpiredCallback(
+      OnVidAuthExpiredCallback? callback) async {
+    onVidAuthExpired = callback;
+  }
+
+  Future<void> setOnURLSourceExpiredCallback(
+      OnURLSourceExpiredCallback? callback) async {
+    onURLSourceExpired = callback;
+  }
 
   void setOnLoadingStatusListener(
       {OnLoadingBegin? loadingBegin,
